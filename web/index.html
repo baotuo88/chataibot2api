@@ -1043,11 +1043,11 @@
       }
     }
 
-    function renderAccounts(accounts) {
-      if (accounts.length === 0) {
-        accountsList.innerHTML = '<div style="color:var(--muted);padding:12px;">暂无账号</div>';
-        return;
-      }
+	    function renderAccounts(accounts) {
+	      if (accounts.length === 0) {
+	        accountsList.innerHTML = '<div style="color:var(--muted);padding:12px;">暂无账号</div>';
+	        return;
+	      }
 
       accountsList.innerHTML = "";
       accounts.forEach((acc, idx) => {
@@ -1057,16 +1057,27 @@
         const info = document.createElement("div");
         info.style.cssText = "flex:1;min-width:0;";
 
-        const indexSpan = document.createElement("div");
-        indexSpan.style.cssText = "font:600 11px/1 'SFMono-Regular','Liberation Mono',monospace;color:var(--muted);margin-bottom:4px;";
-        indexSpan.textContent = `#${idx} | Quota: ${acc.quota}`;
+	        const indexSpan = document.createElement("div");
+	        indexSpan.style.cssText = "font:600 11px/1 'SFMono-Regular','Liberation Mono',monospace;color:var(--muted);margin-bottom:4px;";
+	        const emailPart = acc.email ? ` | ${acc.email}` : "";
+	        indexSpan.textContent = `#${idx} | Quota: ${acc.quota}${emailPart}`;
 
-        const jwtSpan = document.createElement("div");
-        jwtSpan.style.cssText = "font:11px/1.4 'SFMono-Regular','Liberation Mono',monospace;color:var(--ink);word-break:break-all;";
-        jwtSpan.textContent = acc.jwt.substring(0, 40) + "...";
+	        const jwtSpan = document.createElement("div");
+	        jwtSpan.style.cssText = "font:11px/1.4 'SFMono-Regular','Liberation Mono',monospace;color:var(--ink);word-break:break-all;";
+	        jwtSpan.textContent = acc.jwtMasked || "***";
 
-        info.appendChild(indexSpan);
-        info.appendChild(jwtSpan);
+	        const noteSpan = document.createElement("div");
+	        noteSpan.style.cssText = "font:12px/1.4 inherit;color:var(--muted);margin-top:6px;";
+	        noteSpan.textContent = acc.note ? `Note: ${acc.note}` : "Note: -";
+
+	        const updatedAtSpan = document.createElement("div");
+	        updatedAtSpan.style.cssText = "font:11px/1.4 'SFMono-Regular','Liberation Mono',monospace;color:var(--muted);margin-top:6px;";
+	        updatedAtSpan.textContent = `Updated: ${acc.updatedAt || "-"}`;
+
+	        info.appendChild(indexSpan);
+	        info.appendChild(jwtSpan);
+	        info.appendChild(noteSpan);
+	        info.appendChild(updatedAtSpan);
 
         const deleteBtn = document.createElement("button");
         deleteBtn.textContent = "Delete";

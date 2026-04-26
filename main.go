@@ -31,8 +31,11 @@ var appState = NewAppState()
 var webUI embed.FS
 
 type Account struct {
-	JWT   string
-	Quota int
+	JWT       string
+	Email     string
+	Note      string
+	Quota     int
+	UpdatedAt time.Time
 }
 
 type SimplePool struct {
@@ -122,9 +125,10 @@ type StatusResponse struct {
 }
 
 type AccountData struct {
-	JWT   string `json:"jwt"`
-	Email string `json:"email,omitempty"`
-	Note  string `json:"note,omitempty"`
+	JWT       string `json:"jwt"`
+	Email     string `json:"email,omitempty"`
+	Note      string `json:"note,omitempty"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
 }
 
 type AccountListResponse struct {
@@ -133,11 +137,12 @@ type AccountListResponse struct {
 }
 
 type AccountInfo struct {
-	Index int    `json:"index"`
-	Email string `json:"email"`
-	Note  string `json:"note"`
-	Quota int    `json:"quota"`
-	JWT   string `json:"jwt"`
+	Index     int    `json:"index"`
+	Email     string `json:"email"`
+	Note      string `json:"note"`
+	Quota     int    `json:"quota"`
+	JWTMasked string `json:"jwtMasked"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 type AddAccountRequest struct {
@@ -151,18 +156,19 @@ type DeleteAccountRequest struct {
 }
 
 type RequestHistory struct {
-	Time      string `json:"time"`
-	Model     string `json:"model"`
-	Prompt    string `json:"prompt"`
-	Size      string `json:"size"`
-	Success   bool   `json:"success"`
-	ImageURL  string `json:"imageUrl,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Duration  int64  `json:"duration"` // milliseconds
+	Time     string `json:"time"`
+	Model    string `json:"model"`
+	Prompt   string `json:"prompt"`
+	Size     string `json:"size"`
+	Success  bool   `json:"success"`
+	ImageURL string `json:"imageUrl,omitempty"`
+	Error    string `json:"error,omitempty"`
+	Duration int64  `json:"duration"` // milliseconds
 }
 
 var requestHistoryMu sync.Mutex
 var requestHistory []RequestHistory
+
 const maxHistorySize = 100
 
 var modelRouter = map[string]ModelConfig{
@@ -221,6 +227,11 @@ func main() {
 		initialAccounts = []*Account{}
 	} else {
 		logEvent("info", fmt.Sprintf("从 %s 加载了 %d 个账号", accountsFile, len(initialAccounts)))
+		if err := SaveAccountSliceToFile(accountsFile, initialAccounts); err != nil {
+			logEvent("error", fmt.Sprintf("回写清洗后的账号文件失败: %v", err))
+		} else {
+			logEvent("info", fmt.Sprintf("已回写清洗后的账号文件: %s", accountsFile))
+		}
 	}
 
 	accountPool := StartPool(pool, initialAccounts)
@@ -232,6 +243,7 @@ func main() {
 	mux.HandleFunc("/api/accounts", RequireAPIKey(ListAccountsHandler(accountPool)))
 	mux.HandleFunc("/api/accounts/add", RequireAPIKey(AddAccountHandler(accountPool)))
 	mux.HandleFunc("/api/accounts/delete", RequireAPIKey(DeleteAccountHandler(accountPool)))
+	mux.HandleFunc("/api/accounts/export", RequireAPIKey(ExportAccountsHandler(accountPool)))
 	mux.HandleFunc("/api/history", RequireAPIKey(GetRequestHistoryHandler))
 	mux.HandleFunc("/healthz", HealthHandler)
 	mux.HandleFunc("/v1/images/generations", RequireAPIKey(ImageHandler(accountPool)))
@@ -368,6 +380,7 @@ func (p *SimplePool) Release(acc *Account) {
 		return
 	}
 	acc.Quota = quota
+	acc.UpdatedAt = time.Now()
 
 	if acc.Quota < 2 {
 		logEvent("warn", fmt.Sprintf("账号额度过低，丢弃回收，额度=%d", acc.Quota))
@@ -558,13 +571,35 @@ func LoadAccountsFromFile(filepath string) ([]*Account, error) {
 	}
 
 	accounts := make([]*Account, 0, len(accountsData))
-	for _, ad := range accountsData {
-		if ad.JWT != "" {
-			accounts = append(accounts, &Account{
-				JWT:   ad.JWT,
-				Quota: 65,
-			})
+	seenJWTs := make(map[string]struct{}, len(accountsData))
+	for i, ad := range accountsData {
+		jwt := strings.TrimSpace(ad.JWT)
+		if jwt == "" {
+			continue
 		}
+		if _, exists := seenJWTs[jwt]; exists {
+			logEvent("warn", fmt.Sprintf("跳过重复账号，来源=%s index=%d", filepath, i))
+			continue
+		}
+
+		quota, err := apiClient.GetCount(jwt)
+		if err != nil {
+			logEvent("warn", fmt.Sprintf("跳过无效账号，来源=%s index=%d err=%v", filepath, i, err))
+			continue
+		}
+		if quota < 2 {
+			logEvent("warn", fmt.Sprintf("跳过低额度账号，来源=%s index=%d quota=%d", filepath, i, quota))
+			continue
+		}
+
+		seenJWTs[jwt] = struct{}{}
+		accounts = append(accounts, &Account{
+			JWT:       jwt,
+			Email:     strings.TrimSpace(ad.Email),
+			Note:      strings.TrimSpace(ad.Note),
+			Quota:     quota,
+			UpdatedAt: time.Now(),
+		})
 	}
 
 	return accounts, nil
@@ -572,13 +607,22 @@ func LoadAccountsFromFile(filepath string) ([]*Account, error) {
 
 func SaveAccountsToFile(filepath string, pool *SimplePool) error {
 	pool.mu.Lock()
-	accountsData := make([]AccountData, len(pool.accounts))
-	for i, acc := range pool.accounts {
+	accounts := append([]*Account(nil), pool.accounts...)
+	pool.mu.Unlock()
+
+	return SaveAccountSliceToFile(filepath, accounts)
+}
+
+func SaveAccountSliceToFile(filepath string, accounts []*Account) error {
+	accountsData := make([]AccountData, len(accounts))
+	for i, acc := range accounts {
 		accountsData[i] = AccountData{
-			JWT: acc.JWT,
+			JWT:       acc.JWT,
+			Email:     acc.Email,
+			Note:      acc.Note,
+			UpdatedAt: formatTimestamp(acc.UpdatedAt),
 		}
 	}
-	pool.mu.Unlock()
 
 	data, err := json.MarshalIndent(accountsData, "", "  ")
 	if err != nil {
@@ -601,8 +645,16 @@ func AddAccountHandler(pool *SimplePool) http.HandlerFunc {
 			return
 		}
 
+		req.JWT = strings.TrimSpace(req.JWT)
+		req.Email = strings.TrimSpace(req.Email)
+		req.Note = strings.TrimSpace(req.Note)
+
 		if req.JWT == "" {
 			http.Error(w, "JWT is required", http.StatusBadRequest)
+			return
+		}
+		if hasAccountJWT(pool, req.JWT) {
+			http.Error(w, "JWT already exists", http.StatusConflict)
 			return
 		}
 
@@ -611,11 +663,23 @@ func AddAccountHandler(pool *SimplePool) http.HandlerFunc {
 			http.Error(w, fmt.Sprintf("Invalid JWT: %v", err), http.StatusBadRequest)
 			return
 		}
+		if quota < 2 {
+			http.Error(w, fmt.Sprintf("JWT quota too low: %d", quota), http.StatusBadRequest)
+			return
+		}
 
 		pool.mu.Lock()
+		if accountIndexByJWT(pool.accounts, req.JWT) >= 0 {
+			pool.mu.Unlock()
+			http.Error(w, "JWT already exists", http.StatusConflict)
+			return
+		}
 		pool.accounts = append(pool.accounts, &Account{
-			JWT:   req.JWT,
-			Quota: quota,
+			JWT:       req.JWT,
+			Email:     req.Email,
+			Note:      req.Note,
+			Quota:     quota,
+			UpdatedAt: time.Now(),
 		})
 		pool.mu.Unlock()
 
@@ -631,6 +695,21 @@ func AddAccountHandler(pool *SimplePool) http.HandlerFunc {
 			"quota":   quota,
 		})
 	}
+}
+
+func accountIndexByJWT(accounts []*Account, jwt string) int {
+	for i, acc := range accounts {
+		if acc.JWT == jwt {
+			return i
+		}
+	}
+	return -1
+}
+
+func hasAccountJWT(pool *SimplePool, jwt string) bool {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	return accountIndexByJWT(pool.accounts, jwt) >= 0
 }
 
 func DeleteAccountHandler(pool *SimplePool) http.HandlerFunc {
@@ -678,9 +757,12 @@ func ListAccountsHandler(pool *SimplePool) http.HandlerFunc {
 		accounts := make([]AccountInfo, len(pool.accounts))
 		for i, acc := range pool.accounts {
 			accounts[i] = AccountInfo{
-				Index: i,
-				JWT:   acc.JWT,
-				Quota: acc.Quota,
+				Index:     i,
+				Email:     acc.Email,
+				Note:      acc.Note,
+				Quota:     acc.Quota,
+				JWTMasked: maskJWT(acc.JWT),
+				UpdatedAt: formatTimestamp(acc.UpdatedAt),
 			}
 		}
 		pool.mu.Unlock()
@@ -692,6 +774,30 @@ func ListAccountsHandler(pool *SimplePool) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
+	}
+}
+
+func ExportAccountsHandler(pool *SimplePool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		pool.mu.Lock()
+		accountsData := make([]AccountData, len(pool.accounts))
+		for i, acc := range pool.accounts {
+			accountsData[i] = AccountData{
+				JWT:       acc.JWT,
+				Email:     acc.Email,
+				Note:      acc.Note,
+				UpdatedAt: formatTimestamp(acc.UpdatedAt),
+			}
+		}
+		pool.mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(accountsData)
 	}
 }
 
@@ -910,6 +1016,23 @@ func maskValue(value string) string {
 		return "***"
 	}
 	return value[:3] + "***" + value[len(value)-3:]
+}
+
+func maskJWT(jwt string) string {
+	if jwt == "" {
+		return ""
+	}
+	if len(jwt) <= 24 {
+		return maskValue(jwt)
+	}
+	return jwt[:12] + "..." + jwt[len(jwt)-12:]
+}
+
+func formatTimestamp(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339)
 }
 
 func maskEmail(email string) string {

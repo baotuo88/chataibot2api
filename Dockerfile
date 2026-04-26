@@ -17,6 +17,6 @@ RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /chataibot2api /usr/local/bin/chataibot2api
 
-EXPOSE 8080
+EXPOSE 8880
 
 ENTRYPOINT ["/usr/local/bin/chataibot2api"]

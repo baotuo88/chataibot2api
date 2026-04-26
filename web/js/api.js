@@ -53,6 +53,11 @@ class API {
     return this.request('/api/accounts');
   }
 
+  // 导出账号
+  async exportAccounts() {
+    return this.request('/api/accounts/export');
+  }
+
   // 添加账号
   async addAccount(jwt, email = '', note = '') {
     return this.request('/api/accounts/add', {

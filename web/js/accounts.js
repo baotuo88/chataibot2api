@@ -20,7 +20,7 @@ function renderAccounts(accounts) {
   if (accounts.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="4" style="text-align: center; color: var(--text-muted);">
+        <td colspan="7" style="text-align: center; color: var(--text-muted);">
           <span data-i18n="accounts.no_accounts">${t('accounts.no_accounts')}</span>
         </td>
       </tr>
@@ -32,6 +32,10 @@ function renderAccounts(accounts) {
     const isLowQuota = acc.quota < QUOTA_WARNING_THRESHOLD;
     const quotaColor = acc.quota > 30 ? 'var(--success)' : (isLowQuota ? 'var(--danger)' : 'var(--warning)');
     const quotaBg = acc.quota > 30 ? 'rgba(16, 185, 129, 0.1)' : (isLowQuota ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)');
+    const email = acc.email || '-';
+    const note = acc.note || '-';
+    const jwtMasked = acc.jwtMasked || '***';
+    const updatedAt = acc.updatedAt || '-';
 
     return `
       <tr ${isLowQuota ? 'style="background: rgba(239, 68, 68, 0.05);"' : ''}>
@@ -41,9 +45,11 @@ function renderAccounts(accounts) {
         </td>
         <td>
           <code style="font-size: 12px; color: var(--text-muted);">
-            ${acc.jwt.substring(0, 50)}...
+            ${jwtMasked}
           </code>
         </td>
+        <td>${email}</td>
+        <td>${note}</td>
         <td>
           <span style="
             padding: 4px 12px;
@@ -56,6 +62,7 @@ function renderAccounts(accounts) {
             ${acc.quota}
           </span>
         </td>
+        <td><code style="font-size: 12px; color: var(--text-muted);">${updatedAt}</code></td>
         <td>
           <button class="btn btn-danger" onclick="deleteAccount(${acc.index})" style="padding: 6px 16px; font-size: 13px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -148,12 +155,7 @@ async function importAccounts(event) {
 // 导出账号
 async function exportAccounts() {
   try {
-    const data = await api.getAccounts();
-    const accounts = data.accounts.map(acc => ({
-      jwt: acc.jwt,
-      email: acc.email || '',
-      note: acc.note || ''
-    }));
+    const accounts = await api.exportAccounts();
 
     const blob = new Blob([JSON.stringify(accounts, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
