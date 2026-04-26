@@ -1,6 +1,11 @@
 // 账号管理页面逻辑
 let accountsInterval;
 const QUOTA_WARNING_THRESHOLD = 10; // 额度预警阈值
+const DEFAULT_PAGE_SIZE = 20;
+let currentPage = 1;
+let currentPageSize = DEFAULT_PAGE_SIZE;
+let currentTotalPages = 0;
+let lastLowQuotaCount = 0;
 
 function createSvgElement(tagName, attributes = {}) {
   const element = document.createElementNS('http://www.w3.org/2000/svg', tagName);
@@ -10,12 +15,17 @@ function createSvgElement(tagName, attributes = {}) {
   return element;
 }
 
-async function loadAccounts() {
+async function loadAccounts(page = currentPage) {
   try {
-    const data = await api.getAccounts();
+    const data = await api.getAccounts(page, currentPageSize);
+    currentPage = data.page || 1;
+    currentPageSize = data.pageSize || currentPageSize;
+    currentTotalPages = data.totalPages || 0;
     renderAccounts(data.accounts || []);
     updateAccountCount(data.total || 0);
-    checkQuotaWarnings(data.accounts || []);
+    updatePagination(data.total || 0, currentPage, currentPageSize, currentTotalPages);
+    syncPageSizeSelect(currentPageSize);
+    checkQuotaWarnings(data.lowQuotaCount || 0);
   } catch (error) {
     console.error('Failed to load accounts:', error);
     showError(t('accounts.load_failed'));
@@ -118,13 +128,12 @@ function renderAccounts(accounts) {
   });
 }
 
-function checkQuotaWarnings(accounts) {
-  const lowQuotaAccounts = accounts.filter(acc => acc.quota < QUOTA_WARNING_THRESHOLD);
-
-  if (lowQuotaAccounts.length > 0) {
-    const message = `⚠️ 警告：有 ${lowQuotaAccounts.length} 个账号额度低于 ${QUOTA_WARNING_THRESHOLD}！`;
+function checkQuotaWarnings(lowQuotaCount) {
+  if (lowQuotaCount > 0 && lowQuotaCount !== lastLowQuotaCount) {
+    const message = `⚠️ 警告：有 ${lowQuotaCount} 个账号额度低于 ${QUOTA_WARNING_THRESHOLD}！`;
     showWarningNotification(message);
   }
+  lastLowQuotaCount = lowQuotaCount;
 }
 
 function showWarningNotification(message) {
@@ -219,6 +228,40 @@ function updateAccountCount(count) {
   badge.appendChild(strong);
 }
 
+function getPageSummaryText(total, page, totalPages) {
+  if (currentLang === 'en') {
+    return `Page ${page} / ${totalPages || 1}, ${total} accounts`;
+  }
+  return `第 ${page} / ${totalPages || 1} 页，共 ${total} 个账号`;
+}
+
+function syncPageSizeSelect(pageSize) {
+  const pageSizeSelect = document.getElementById('account-page-size');
+  if (pageSizeSelect) {
+    pageSizeSelect.value = String(pageSize);
+  }
+}
+
+function updatePagination(total, page, pageSize, totalPages) {
+  const summary = document.getElementById('account-page-summary');
+  const prevButton = document.getElementById('account-prev-page');
+  const nextButton = document.getElementById('account-next-page');
+
+  if (summary) {
+    summary.textContent = getPageSummaryText(total, page, totalPages);
+  }
+  if (prevButton) {
+    prevButton.disabled = page <= 1;
+  }
+  if (nextButton) {
+    nextButton.disabled = totalPages === 0 || page >= totalPages;
+  }
+
+  currentPage = page;
+  currentPageSize = pageSize;
+  currentTotalPages = totalPages;
+}
+
 async function deleteAccount(index) {
   if (!confirm(t('accounts.confirm_delete'))) {
     return;
@@ -227,7 +270,7 @@ async function deleteAccount(index) {
   try {
     await api.deleteAccount(index);
     showSuccess(t('accounts.delete_success'));
-    await loadAccounts();
+    await loadAccounts(currentPage);
   } catch (error) {
     showError(t('accounts.delete_failed') + error.message);
   }
@@ -250,6 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const importButton = document.getElementById('import-accounts-btn');
   const exportButton = document.getElementById('export-accounts-btn');
   const batchImportInput = document.getElementById('batch-import-input');
+  const prevButton = document.getElementById('account-prev-page');
+  const nextButton = document.getElementById('account-next-page');
+  const pageSizeSelect = document.getElementById('account-page-size');
 
   if (importButton && batchImportInput) {
     importButton.addEventListener('click', () => batchImportInput.click());
@@ -257,6 +303,27 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (exportButton) {
     exportButton.addEventListener('click', exportAccounts);
+  }
+  if (prevButton) {
+    prevButton.addEventListener('click', () => {
+      if (currentPage > 1) {
+        loadAccounts(currentPage - 1);
+      }
+    });
+  }
+  if (nextButton) {
+    nextButton.addEventListener('click', () => {
+      if (currentPage < currentTotalPages) {
+        loadAccounts(currentPage + 1);
+      }
+    });
+  }
+  if (pageSizeSelect) {
+    pageSizeSelect.addEventListener('change', () => {
+      currentPageSize = Number(pageSizeSelect.value) || DEFAULT_PAGE_SIZE;
+      currentPage = 1;
+      loadAccounts(1);
+    });
   }
 
   form.addEventListener('submit', async (e) => {
@@ -281,13 +348,14 @@ document.addEventListener('DOMContentLoaded', () => {
       noteInput.value = '';
 
       // 重新加载账号列表
-      await loadAccounts();
+      await loadAccounts(1);
     } catch (error) {
       showError(t('accounts.add_failed') + error.message);
     }
   });
 
   // 初始加载
+  syncPageSizeSelect(currentPageSize);
   loadAccounts();
   accountsInterval = setInterval(loadAccounts, 10000);
 });

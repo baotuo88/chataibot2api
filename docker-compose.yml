@@ -13,14 +13,14 @@ services:
     ports:
       - "${APP_PORT:-8880}:${APP_PORT:-8880}"
     volumes:
-      - ./accounts.json:/app/accounts.json
+      - ./data:/data
     environment:
       APP_PORT: ${APP_PORT:-8880}
       APP_POOL: ${APP_POOL:-10}
       APP_MAX_BODY_MB: ${APP_MAX_BODY_MB:-20}
       APP_MAX_IMAGES: ${APP_MAX_IMAGES:-4}
       APP_ACQUIRE_TIMEOUT_SEC: ${APP_ACQUIRE_TIMEOUT_SEC:-45}
-      APP_ACCOUNTS_FILE: ${APP_ACCOUNTS_FILE:-accounts.json}
+      APP_ACCOUNTS_FILE: ${APP_ACCOUNTS_FILE:-/data/accounts.json}
       APP_AUTH_KEY: ${APP_AUTH_KEY:-}
     tmpfs:
       - /tmp:size=64m,noexec,nosuid

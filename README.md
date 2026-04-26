@@ -71,7 +71,7 @@ go build -o chataibot2api
 | `APP_MAX_BODY_MB` | 20 | 请求体积上限（MB） |
 | `APP_MAX_IMAGES` | 4 | 单次合图最大图片数 |
 | `APP_ACQUIRE_TIMEOUT_SEC` | 45 | 账号获取超时（秒） |
-| `APP_ACCOUNTS_FILE` | accounts.json | 账号文件路径 |
+| `APP_ACCOUNTS_FILE` | `/data/accounts.json`（Docker） | 账号文件路径 |
 
 ### 命令行参数
 
@@ -260,12 +260,13 @@ console.log(result.data[0].url);
 ### 列表显示说明
 
 - 账号列表默认只展示脱敏后的 JWT 预览
-- 完整 JWT 仅保存在服务端内存和 `accounts.json` 中
+- 完整 JWT 仅保存在服务端内存和账号数据文件中
 - 如需备份原始 JWT，请使用"导出账号"功能
 - 重复 JWT 在导入和手动添加时会被拒绝
 - 服务启动时会校验账号有效性并刷新真实额度
-- 启动后会把清洗过的账号列表回写到 `accounts.json`
+- 启动后会把清洗过的账号列表回写到账号数据文件
 - `updatedAt` 表示最近一次成功刷新额度的时间
+- 账号页支持分页，适合较大账号池管理
 
 ---
 
@@ -311,18 +312,29 @@ docker compose up -d
 
 ### 数据持久化
 
-账号数据保存在 `accounts.json` 文件中，已通过 volume 挂载：
+Docker Compose 默认把账号数据持久化到项目目录下的 `./data/accounts.json`，`docker compose up -d --build` 后不会丢失：
 
 ```yaml
 volumes:
-  - ./accounts.json:/app/accounts.json
+  - ./data:/data
 ```
 
 **备份数据：**
 
 ```bash
-cp accounts.json accounts.json.backup.$(date +%Y%m%d)
+cp data/accounts.json data/accounts.json.backup.$(date +%Y%m%d)
 ```
+
+**升级提示：**
+
+如果你之前使用的是仓库根目录下的 `accounts.json`，升级后首次启动前执行一次迁移：
+
+```bash
+mkdir -p data
+cp accounts.json data/accounts.json
+```
+
+注意：`docker compose down -v` 会主动删除 volume/挂载数据，普通的 `docker compose up -d --build` 不会。
 
 ---
 
@@ -387,7 +399,7 @@ docker compose logs
 
 # 常见问题：
 # - 端口被占用：修改 APP_PORT
-# - 权限问题：chmod 666 accounts.json
+# - 数据目录权限：mkdir -p data && chmod 755 data
 ```
 
 ### 健康检查失败

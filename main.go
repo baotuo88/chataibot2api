@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	pathpkg "path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,8 +150,12 @@ type AccountData struct {
 }
 
 type AccountListResponse struct {
-	Total    int           `json:"total"`
-	Accounts []AccountInfo `json:"accounts"`
+	Total         int           `json:"total"`
+	Page          int           `json:"page"`
+	PageSize      int           `json:"pageSize"`
+	TotalPages    int           `json:"totalPages"`
+	LowQuotaCount int           `json:"lowQuotaCount"`
+	Accounts      []AccountInfo `json:"accounts"`
 }
 
 type AccountInfo struct {
@@ -187,6 +192,8 @@ var requestHistoryMu sync.Mutex
 var requestHistory []RequestHistory
 
 const maxHistorySize = 100
+const defaultAccountsPageSize = 20
+const maxAccountsPageSize = 100
 
 var modelRouter = map[string]ModelConfig{
 	"gpt-image-1.5":          {Provider: "GPT_IMAGE_1_5", Version: "", Cost: 12},
@@ -674,6 +681,10 @@ func SaveAccountsToFile(filepath string, pool *SimplePool) error {
 }
 
 func SaveAccountSliceToFile(filepath string, accounts []*Account) error {
+	if err := os.MkdirAll(pathpkg.Dir(filepath), 0755); err != nil {
+		return err
+	}
+
 	accountsData := make([]AccountData, len(accounts))
 	for i, acc := range accounts {
 		accountsData[i] = AccountData{
@@ -817,9 +828,19 @@ func ListAccountsHandler(pool *SimplePool) http.HandlerFunc {
 			return
 		}
 
+		page := parsePositiveInt(r.URL.Query().Get("page"), 1)
+		pageSize := parsePositiveInt(r.URL.Query().Get("pageSize"), defaultAccountsPageSize)
+		if pageSize > maxAccountsPageSize {
+			pageSize = maxAccountsPageSize
+		}
+
 		pool.mu.Lock()
 		accounts := make([]AccountInfo, len(pool.accounts))
+		lowQuotaCount := 0
 		for i, acc := range pool.accounts {
+			if acc.Quota < 10 {
+				lowQuotaCount++
+			}
 			accounts[i] = AccountInfo{
 				Index:     i,
 				Email:     acc.Email,
@@ -831,9 +852,38 @@ func ListAccountsHandler(pool *SimplePool) http.HandlerFunc {
 		}
 		pool.mu.Unlock()
 
+		total := len(accounts)
+		totalPages := 0
+		if total > 0 {
+			totalPages = (total + pageSize - 1) / pageSize
+			if page > totalPages {
+				page = totalPages
+			}
+		}
+
+		start := 0
+		end := total
+		if total > 0 {
+			start = (page - 1) * pageSize
+			if start < 0 {
+				start = 0
+			}
+			if start > total {
+				start = total
+			}
+			end = start + pageSize
+			if end > total {
+				end = total
+			}
+		}
+
 		resp := AccountListResponse{
-			Total:    len(accounts),
-			Accounts: accounts,
+			Total:         total,
+			Page:          page,
+			PageSize:      pageSize,
+			TotalPages:    totalPages,
+			LowQuotaCount: lowQuotaCount,
+			Accounts:      accounts[start:end],
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -1182,6 +1232,14 @@ func envInt(name string, fallback int) int {
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		logEvent("warn", fmt.Sprintf("环境变量 %s 非法，继续使用默认值 %d", name, fallback))
+		return fallback
+	}
+	return parsed
+}
+
+func parsePositiveInt(value string, fallback int) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed < 1 {
 		return fallback
 	}
 	return parsed

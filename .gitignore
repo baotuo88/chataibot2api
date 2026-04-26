@@ -24,6 +24,8 @@ go.work
 
 # Data files
 accounts.json
+data/*
+!data/.gitkeep
 *.log
 
 # IDE

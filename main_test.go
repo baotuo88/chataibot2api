@@ -1,13 +1,39 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+type testResponseWriter struct {
+	header http.Header
+	body   bytes.Buffer
+	status int
+}
+
+func (w *testResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *testResponseWriter) Write(data []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.body.Write(data)
+}
+
+func (w *testResponseWriter) WriteHeader(statusCode int) {
+	w.status = statusCode
+}
 
 func withFetchQuotaStub(t *testing.T, stub func(string) (int, error)) {
 	t.Helper()
@@ -171,5 +197,60 @@ func TestAcquireTimesOutWhenNoAccountBecomesAvailable(t *testing.T) {
 	}
 	if time.Since(start) < 60*time.Millisecond {
 		t.Fatalf("acquire returned too early: %v", time.Since(start))
+	}
+}
+
+func TestSaveAccountSliceToFileCreatesParentDir(t *testing.T) {
+	filepath := t.TempDir() + "/nested/accounts.json"
+	accounts := []*Account{
+		{JWT: "jwt-1", Email: "user@example.com", Quota: 10, UpdatedAt: time.Now()},
+	}
+
+	if err := SaveAccountSliceToFile(filepath, accounts); err != nil {
+		t.Fatalf("save account slice failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath); err != nil {
+		t.Fatalf("expected saved file to exist: %v", err)
+	}
+}
+
+func TestListAccountsHandlerSupportsPagination(t *testing.T) {
+	pool := StartPool(5, []*Account{
+		{JWT: "jwt-1", Email: "a@example.com", Quota: 30, UpdatedAt: time.Now()},
+		{JWT: "jwt-2", Email: "b@example.com", Quota: 8, UpdatedAt: time.Now()},
+		{JWT: "jwt-3", Email: "c@example.com", Quota: 15, UpdatedAt: time.Now()},
+		{JWT: "jwt-4", Email: "d@example.com", Quota: 7, UpdatedAt: time.Now()},
+		{JWT: "jwt-5", Email: "e@example.com", Quota: 20, UpdatedAt: time.Now()},
+	})
+
+	req, err := http.NewRequest(http.MethodGet, "/api/accounts?page=2&pageSize=2", nil)
+	if err != nil {
+		t.Fatalf("build request failed: %v", err)
+	}
+	rec := &testResponseWriter{}
+
+	ListAccountsHandler(pool).ServeHTTP(rec, req)
+
+	if rec.status != http.StatusOK {
+		t.Fatalf("unexpected status code: %d", rec.status)
+	}
+
+	var resp AccountListResponse
+	if err := json.NewDecoder(&rec.body).Decode(&resp); err != nil {
+		t.Fatalf("decode response failed: %v", err)
+	}
+
+	if resp.Total != 5 || resp.Page != 2 || resp.PageSize != 2 || resp.TotalPages != 3 {
+		t.Fatalf("unexpected pagination response: %+v", resp)
+	}
+	if resp.LowQuotaCount != 2 {
+		t.Fatalf("unexpected low quota count: %d", resp.LowQuotaCount)
+	}
+	if len(resp.Accounts) != 2 {
+		t.Fatalf("expected 2 accounts on page 2, got %d", len(resp.Accounts))
+	}
+	if resp.Accounts[0].Index != 2 || resp.Accounts[1].Index != 3 {
+		t.Fatalf("unexpected account indexes on page 2: %+v", resp.Accounts)
 	}
 }

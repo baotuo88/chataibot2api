@@ -51,7 +51,10 @@ const translations = {
       delete_success: '账号删除成功',
       delete_failed: '删除账号失败：',
       no_accounts: '暂无账号',
-      load_failed: '加载失败'
+      load_failed: '加载失败',
+      page_size: '每页',
+      prev_page: '上一页',
+      next_page: '下一页'
     },
     playground: {
       title: 'API 测试',
@@ -158,7 +161,10 @@ const translations = {
       delete_success: 'Account deleted successfully',
       delete_failed: 'Failed to delete account: ',
       no_accounts: 'No accounts',
-      load_failed: 'Failed to load'
+      load_failed: 'Failed to load',
+      page_size: 'Per page',
+      prev_page: 'Previous',
+      next_page: 'Next'
     },
     playground: {
       title: 'API Playground',

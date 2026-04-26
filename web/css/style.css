@@ -708,6 +708,52 @@ tr:hover {
   color: var(--text-muted);
 }
 
+.table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.table-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.table-toolbar-group-right {
+  justify-content: flex-end;
+}
+
+.toolbar-label {
+  margin-bottom: 0;
+  font-size: 13px;
+}
+
+.toolbar-select {
+  min-width: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.table-summary {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.btn-toolbar {
+  min-width: 88px;
+}
+
 .table-scroll-700 {
   max-height: 700px;
   overflow-y: auto;

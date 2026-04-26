@@ -168,6 +168,22 @@
           <div class="card-header">
             <h3 data-i18n="accounts.account_list">账号列表</h3>
           </div>
+          <div class="table-toolbar">
+            <div class="table-toolbar-group">
+              <label for="account-page-size" class="toolbar-label" data-i18n="accounts.page_size">每页</label>
+              <select id="account-page-size" class="toolbar-select">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+            <div class="table-toolbar-group table-toolbar-group-right">
+              <span class="table-summary" id="account-page-summary">第 1 / 1 页，共 0 个账号</span>
+              <button type="button" class="btn btn-secondary btn-toolbar" id="account-prev-page" data-i18n="accounts.prev_page">上一页</button>
+              <button type="button" class="btn btn-secondary btn-toolbar" id="account-next-page" data-i18n="accounts.next_page">下一页</button>
+            </div>
+          </div>
           <table>
             <thead>
               <tr>

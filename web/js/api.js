@@ -49,8 +49,12 @@ class API {
   }
 
   // 获取账号列表
-  async getAccounts() {
-    return this.request('/api/accounts');
+  async getAccounts(page = 1, pageSize = 20) {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize)
+    });
+    return this.request(`/api/accounts?${params.toString()}`);
   }
 
   // 导出账号
