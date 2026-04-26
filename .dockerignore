@@ -1,0 +1,7 @@
+.git
+.gitignore
+.DS_Store
+.gocache
+README.md
+docker-compose.yml
+*.log

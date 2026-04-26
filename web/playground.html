@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Playground - ChatAIBot 2API</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="logo">ChatAIBot<span>2API</span></h1>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span data-i18n="nav.dashboard">仪表盘</span>
+        </a>
+
+        <a href="accounts.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span data-i18n="nav.accounts">账号管理</span>
+        </a>
+
+        <a href="playground.html" class="nav-item active">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+          </svg>
+          <span data-i18n="nav.playground">API 测试</span>
+        </a>
+
+        <a href="history.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>请求历史</span>
+        </a>
+
+        <a href="logs.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span data-i18n="nav.logs">运行日志</span>
+        </a>
+
+        <a href="settings.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6m5.2-13.2l-4.2 4.2m0 6l4.2 4.2M23 12h-6m-6 0H1m18.2 5.2l-4.2-4.2m-6 0l-4.2 4.2"></path>
+          </svg>
+          <span data-i18n="nav.settings">系统设置</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="theme-switch" id="theme-switch">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </div>
+
+        <div class="lang-switch">
+          <button class="lang-btn active" data-lang="zh">中文</button>
+          <button class="lang-btn" data-lang="en">English</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h2 data-i18n="playground.title">API 测试</h2>
+          <p data-i18n="playground.subtitle">测试图片生成接口</p>
+        </div>
+      </header>
+
+      <div class="content-wrapper">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
+          <!-- Request Form -->
+          <div class="chart-card">
+            <div class="card-header">
+              <h3>Request</h3>
+            </div>
+            <div class="chart-content">
+              <form id="generate-form">
+                <div class="form-group">
+                  <label data-i18n="playground.prompt">提示词</label>
+                  <textarea
+                    id="prompt-input"
+                    rows="4"
+                    data-i18n-placeholder="playground.prompt_placeholder"
+                    placeholder="描述你想生成的图片..."
+                    required
+                  ></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label data-i18n="playground.model">模型</label>
+                  <select id="model-select">
+                    <option value="gpt-image-1.5">gpt-image-1.5</option>
+                    <option value="gpt-image-1.5-high">gpt-image-1.5-high</option>
+                    <option value="ideogram">ideogram</option>
+                    <option value="google-nano-banana">google-nano-banana</option>
+                    <option value="google-nano-banana-2">google-nano-banana-2</option>
+                    <option value="midjourney-7">midjourney-7</option>
+                    <option value="qwen-lora">qwen-lora</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label data-i18n="playground.size">尺寸</label>
+                  <select id="size-select">
+                    <option value="1024x1024">1024x1024 (1:1)</option>
+                    <option value="1024x1792">1024x1792 (9:16)</option>
+                    <option value="1792x1024">1792x1024 (16:9)</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label data-i18n="playground.upload_image">上传图片（可选）</label>
+                  <input type="file" id="image-input" accept="image/*" multiple>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="generate-btn" style="width: 100%;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                  <span data-i18n="playground.generate">生成图片</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Result -->
+          <div class="chart-card">
+            <div class="card-header">
+              <h3 data-i18n="playground.result">生成结果</h3>
+            </div>
+            <div class="chart-content">
+              <div id="result-container" style="min-height: 400px; display: flex; align-items: center; justify-content: center; background: var(--bg-tertiary); border-radius: 8px;">
+                <p style="color: var(--text-muted);" data-i18n="playground.no_result">暂无结果</p>
+              </div>
+
+              <div id="result-actions" style="margin-top: 16px; display: none; gap: 12px;">
+                <button class="btn btn-secondary" onclick="copyImageUrl()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span data-i18n="playground.copy_url">复制链接</span>
+                </button>
+                <button class="btn btn-secondary" onclick="downloadImage()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span data-i18n="playground.download">下载图片</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/playground.js"></script>
+</body>
+</html>

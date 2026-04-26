@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Management - ChatAIBot 2API</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="logo">ChatAIBot<span>2API</span></h1>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="dashboard.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span data-i18n="nav.dashboard">仪表盘</span>
+        </a>
+
+        <a href="accounts.html" class="nav-item active">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span data-i18n="nav.accounts">账号管理</span>
+        </a>
+
+        <a href="playground.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+          </svg>
+          <span data-i18n="nav.playground">API 测试</span>
+        </a>
+
+        <a href="history.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>请求历史</span>
+        </a>
+
+        <a href="logs.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span data-i18n="nav.logs">运行日志</span>
+        </a>
+
+        <a href="settings.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6m5.2-13.2l-4.2 4.2m0 6l4.2 4.2M23 12h-6m-6 0H1m18.2 5.2l-4.2-4.2m-6 0l-4.2 4.2"></path>
+          </svg>
+          <span data-i18n="nav.settings">系统设置</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="theme-switch" id="theme-switch">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </div>
+
+        <div class="lang-switch">
+          <button class="lang-btn active" data-lang="zh">中文</button>
+          <button class="lang-btn" data-lang="en">English</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="page-header">
+        <div>
+          <h2 data-i18n="accounts.title">账号管理</h2>
+          <p data-i18n="accounts.subtitle">管理 API 账号和额度</p>
+        </div>
+        <div class="header-actions">
+          <span class="status-badge" id="account-count">
+            <span data-i18n="accounts.title">账号</span>: <strong>0</strong>
+          </span>
+        </div>
+      </header>
+
+      <div class="content-wrapper">
+        <!-- Add Account Form -->
+        <div class="chart-card" style="margin-bottom: 32px;">
+          <div class="card-header">
+            <h3 data-i18n="accounts.add_account">添加账号</h3>
+          </div>
+          <div class="chart-content">
+            <!-- 批量导入按钮 -->
+            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+              <button class="btn btn-secondary" onclick="document.getElementById('batch-import-input').click()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                批量导入 JSON
+              </button>
+              <input type="file" id="batch-import-input" accept=".json" style="display: none;" onchange="importAccounts(event)">
+
+              <button class="btn btn-secondary" onclick="exportAccounts()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                导出账号
+              </button>
+            </div>
+
+            <form id="add-account-form">
+              <div class="form-group">
+                <label data-i18n="accounts.jwt_token">JWT Token</label>
+                <textarea
+                  id="jwt-input"
+                  rows="4"
+                  data-i18n-placeholder="accounts.jwt_placeholder"
+                  placeholder="粘贴完整的 JWT token"
+                  required
+                  style="font-family: 'Courier New', monospace; font-size: 13px;"
+                ></textarea>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                  <label data-i18n="accounts.email">邮箱（可选）</label>
+                  <input type="text" id="email-input" placeholder="user@example.com">
+                </div>
+
+                <div class="form-group">
+                  <label data-i18n="accounts.note">备注（可选）</label>
+                  <input type="text" id="note-input" placeholder="备注信息">
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span data-i18n="accounts.submit">添加账号</span>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Account List -->
+        <div class="table-container">
+          <div class="card-header">
+            <h3 data-i18n="accounts.account_list">账号列表</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th data-i18n="accounts.index">索引</th>
+                <th>JWT Token</th>
+                <th data-i18n="accounts.quota">额度</th>
+                <th data-i18n="accounts.actions">操作</th>
+              </tr>
+            </thead>
+            <tbody id="accounts-table-body">
+              <tr>
+                <td colspan="4" style="text-align: center; color: var(--text-muted);">
+                  <span data-i18n="accounts.no_accounts">暂无账号</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/accounts.js"></script>
+</body>
+</html>
