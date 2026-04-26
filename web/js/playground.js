@@ -1,6 +1,55 @@
 // Playground 页面逻辑
 let currentImageUrl = '';
 
+function createSvgElement(tagName, attributes = {}) {
+  const element = document.createElementNS('http://www.w3.org/2000/svg', tagName);
+  Object.entries(attributes).forEach(([key, value]) => {
+    element.setAttribute(key, value);
+  });
+  return element;
+}
+
+function renderLoadingState(container) {
+  const panel = document.createElement('div');
+  panel.className = 'loading-panel';
+
+  const spinner = document.createElement('div');
+  spinner.className = 'loading-spinner';
+
+  const text = document.createElement('p');
+  text.className = 'text-muted';
+  text.textContent = t('playground.generating');
+
+  panel.appendChild(spinner);
+  panel.appendChild(text);
+  container.replaceChildren(panel);
+}
+
+function renderErrorState(container, error) {
+  const panel = document.createElement('div');
+  panel.className = 'error-panel';
+
+  const icon = createSvgElement('svg', {
+    width: '48',
+    height: '48',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    class: 'error-icon'
+  });
+  icon.appendChild(createSvgElement('circle', { cx: '12', cy: '12', r: '10' }));
+  icon.appendChild(createSvgElement('line', { x1: '15', y1: '9', x2: '9', y2: '15' }));
+  icon.appendChild(createSvgElement('line', { x1: '9', y1: '9', x2: '15', y2: '15' }));
+
+  const text = document.createElement('p');
+  text.textContent = `${t('playground.failed')}${error.message}`;
+
+  panel.appendChild(icon);
+  panel.appendChild(text);
+  container.replaceChildren(panel);
+}
+
 // 读取文件为 Base64
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
@@ -21,6 +70,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateBtn = document.getElementById('generate-btn');
   const resultContainer = document.getElementById('result-container');
   const resultActions = document.getElementById('result-actions');
+  const copyButton = document.getElementById('copy-image-url-btn');
+  const downloadButton = document.getElementById('download-image-btn');
+
+  if (copyButton) {
+    copyButton.addEventListener('click', copyImageUrl);
+  }
+  if (downloadButton) {
+    downloadButton.addEventListener('click', downloadImage);
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -41,20 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     generateBtn.querySelector('span').textContent = t('playground.generating');
 
     // 显示加载状态
-    resultContainer.innerHTML = `
-      <div style="text-align: center;">
-        <div style="
-          width: 48px;
-          height: 48px;
-          border: 4px solid var(--border);
-          border-top-color: var(--primary);
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 16px;
-        "></div>
-        <p style="color: var(--text-muted);">${t('playground.generating')}</p>
-      </div>
-    `;
+    renderLoadingState(resultContainer);
 
     try {
       let image = null;
@@ -81,17 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (error) {
       console.error('Generation failed:', error);
-      resultContainer.innerHTML = `
-        <div style="text-align: center; color: var(--danger);">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 16px;">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="15" y1="9" x2="9" y2="15"></line>
-            <line x1="9" y1="9" x2="15" y2="15"></line>
-          </svg>
-          <p>${t('playground.failed')}${error.message}</p>
-        </div>
-      `;
-      resultActions.style.display = 'none';
+      renderErrorState(resultContainer, error);
+      resultActions.classList.remove('visible');
     } finally {
       // 恢复按钮
       generateBtn.disabled = false;
@@ -103,22 +139,13 @@ document.addEventListener('DOMContentLoaded', () => {
 function showResult(imageUrl) {
   const resultContainer = document.getElementById('result-container');
   const resultActions = document.getElementById('result-actions');
+  const image = document.createElement('img');
+  image.className = 'generated-image';
+  image.src = imageUrl;
+  image.alt = 'Generated Image';
 
-  resultContainer.innerHTML = `
-    <img
-      src="${imageUrl}"
-      alt="Generated Image"
-      style="
-        max-width: 100%;
-        max-height: 600px;
-        border-radius: 8px;
-        display: block;
-        margin: 0 auto;
-      "
-    />
-  `;
-
-  resultActions.style.display = 'flex';
+  resultContainer.replaceChildren(image);
+  resultActions.classList.add('visible');
 }
 
 function copyImageUrl() {
@@ -143,12 +170,3 @@ function downloadImage() {
   a.click();
   document.body.removeChild(a);
 }
-
-// 添加旋转动画
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-`;
-document.head.appendChild(style);

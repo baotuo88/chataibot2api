@@ -95,12 +95,12 @@
 
       <div class="content-wrapper">
         <!-- API Key Settings -->
-        <div class="chart-card" style="margin-bottom: 32px;">
+        <div class="chart-card block-spaced">
           <div class="card-header">
             <h3 data-i18n="settings.api_key">API Key</h3>
           </div>
           <div class="chart-content">
-            <p style="color: var(--text-muted); margin-bottom: 20px;" data-i18n="settings.api_key_desc">
+            <p class="settings-help" data-i18n="settings.api_key_desc">
               用于接口鉴权的密钥
             </p>
 
@@ -111,7 +111,7 @@
                   type="password"
                   id="api-key-input"
                   placeholder="输入你的 API Key"
-                  style="font-family: 'Courier New', monospace;"
+                  class="mono-input"
                 >
               </div>
 
@@ -128,7 +128,7 @@
         </div>
 
         <!-- System Info -->
-        <div class="chart-card" style="margin-bottom: 32px;">
+        <div class="chart-card block-spaced">
           <div class="card-header">
             <h3>System Information</h3>
           </div>
@@ -160,25 +160,25 @@
             <h3>Supported Models</h3>
           </div>
           <div class="chart-content">
-            <div id="models-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
-              <div style="color: var(--text-muted);">Loading...</div>
+            <div id="models-list" class="models-grid">
+              <div class="loading-muted">Loading...</div>
             </div>
           </div>
         </div>
 
         <!-- API Documentation -->
-        <div class="chart-card" style="margin-top: 32px;">
+        <div class="chart-card docs-block">
           <div class="card-header">
             <h3>API Documentation</h3>
           </div>
           <div class="chart-content">
-            <div style="font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.8;">
-              <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            <div class="docs-shell">
+              <p class="docs-endpoint">
                 <strong>Endpoint:</strong> POST /v1/images/generations
               </p>
 
-              <p style="color: var(--text-muted); margin-bottom: 12px;">Request Body:</p>
-              <pre style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; overflow-x: auto; color: var(--text-primary);">{
+              <p class="docs-label">Request Body:</p>
+              <pre class="docs-pre">{
   "prompt": "a beautiful sunset",
   "model": "gpt-image-1.5",
   "size": "1024x1024",
@@ -186,8 +186,8 @@
   "images": ["base64..."]  // optional
 }</pre>
 
-              <p style="color: var(--text-muted); margin: 16px 0 12px;">Response:</p>
-              <pre style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; overflow-x: auto; color: var(--text-primary);">{
+              <p class="docs-label spaced">Response:</p>
+              <pre class="docs-pre">{
   "created": 1234567890,
   "data": [
     {

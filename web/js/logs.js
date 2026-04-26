@@ -13,49 +13,45 @@ async function loadLogs() {
 
 function renderLogs(logs) {
   const tbody = document.getElementById('logs-table-body');
+  tbody.replaceChildren();
 
   if (logs.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="3" style="text-align: center; color: var(--text-muted);">
-          <span data-i18n="logs.no_logs">${t('logs.no_logs')}</span>
-        </td>
-      </tr>
-    `;
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 3;
+    cell.className = 'table-empty-cell';
+    cell.textContent = t('logs.no_logs');
+    row.appendChild(cell);
+    tbody.appendChild(row);
     return;
   }
 
   // 反转日志顺序，最新的在上面
   const reversedLogs = [...logs].reverse();
 
-  tbody.innerHTML = reversedLogs.map(log => {
-    const levelColor = getLevelColor(log.level);
-    const levelBg = getLevelBg(log.level);
+  reversedLogs.forEach((log) => {
+    const row = document.createElement('tr');
+    const normalizedLevel = normalizeLevel(log.level);
 
-    return `
-      <tr>
-        <td style="font-family: 'Courier New', monospace; font-size: 13px; color: var(--text-muted);">
-          ${formatLogTime(log.time)}
-        </td>
-        <td>
-          <span style="
-            padding: 4px 10px;
-            background: ${levelBg};
-            color: ${levelColor};
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 12px;
-            text-transform: uppercase;
-          ">
-            ${log.level}
-          </span>
-        </td>
-        <td style="font-family: 'Courier New', monospace; font-size: 13px;">
-          ${escapeHtml(log.message)}
-        </td>
-      </tr>
-    `;
-  }).join('');
+    const timeCell = document.createElement('td');
+    timeCell.className = 'cell-mono-sm';
+    timeCell.textContent = formatLogTime(log.time);
+    row.appendChild(timeCell);
+
+    const levelCell = document.createElement('td');
+    const levelBadge = document.createElement('span');
+    levelBadge.className = `log-badge log-level-${normalizedLevel}`;
+    levelBadge.textContent = log.level;
+    levelCell.appendChild(levelBadge);
+    row.appendChild(levelCell);
+
+    const messageCell = document.createElement('td');
+    messageCell.className = 'cell-mono-sm';
+    messageCell.textContent = log.message || '';
+    row.appendChild(messageCell);
+
+    tbody.appendChild(row);
+  });
 }
 
 function updateLogStats(logs) {
@@ -79,20 +75,11 @@ function updateLogStats(logs) {
   document.getElementById('info-logs').textContent = stats.info;
 }
 
-function getLevelColor(level) {
+function normalizeLevel(level) {
   const l = level.toLowerCase();
-  if (l === 'error') return 'var(--danger)';
-  if (l === 'warn' || l === 'warning') return 'var(--warning)';
-  if (l === 'success') return 'var(--success)';
-  return 'var(--primary)';
-}
-
-function getLevelBg(level) {
-  const l = level.toLowerCase();
-  if (l === 'error') return 'rgba(239, 68, 68, 0.1)';
-  if (l === 'warn' || l === 'warning') return 'rgba(245, 158, 11, 0.1)';
-  if (l === 'success') return 'rgba(16, 185, 129, 0.1)';
-  return 'rgba(59, 130, 246, 0.1)';
+  if (l === 'warning') return 'warn';
+  if (l === 'error' || l === 'warn' || l === 'success') return l;
+  return 'info';
 }
 
 function formatLogTime(timeStr) {
@@ -111,18 +98,16 @@ function formatLogTime(timeStr) {
   }
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 function refreshLogs() {
   loadLogs();
 }
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+  const refreshButton = document.getElementById('refresh-logs-btn');
+  if (refreshButton) {
+    refreshButton.addEventListener('click', refreshLogs);
+  }
   loadLogs();
   logsInterval = setInterval(loadLogs, 5000);
 });

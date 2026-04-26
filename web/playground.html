@@ -94,7 +94,7 @@
       </header>
 
       <div class="content-wrapper">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
+        <div class="two-panel-grid">
           <!-- Request Form -->
           <div class="chart-card">
             <div class="card-header">
@@ -140,7 +140,7 @@
                   <input type="file" id="image-input" accept="image/*" multiple>
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="generate-btn" style="width: 100%;">
+                <button type="submit" class="btn btn-primary btn-full" id="generate-btn">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <circle cx="8.5" cy="8.5" r="1.5"></circle>
@@ -158,19 +158,19 @@
               <h3 data-i18n="playground.result">生成结果</h3>
             </div>
             <div class="chart-content">
-              <div id="result-container" style="min-height: 400px; display: flex; align-items: center; justify-content: center; background: var(--bg-tertiary); border-radius: 8px;">
-                <p style="color: var(--text-muted);" data-i18n="playground.no_result">暂无结果</p>
+              <div id="result-container" class="result-stage">
+                <p class="text-muted" data-i18n="playground.no_result">暂无结果</p>
               </div>
 
-              <div id="result-actions" style="margin-top: 16px; display: none; gap: 12px;">
-                <button class="btn btn-secondary" onclick="copyImageUrl()">
+              <div id="result-actions" class="result-actions">
+                <button class="btn btn-secondary" id="copy-image-url-btn">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                   </svg>
                   <span data-i18n="playground.copy_url">复制链接</span>
                 </button>
-                <button class="btn btn-secondary" onclick="downloadImage()">
+                <button class="btn btn-secondary" id="download-image-btn">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>

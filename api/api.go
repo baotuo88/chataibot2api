@@ -34,8 +34,28 @@ func NewAPIClient() *APIClient {
 	}
 }
 
+func newAuthenticatedRequest(method, url string, body io.Reader, jwtToken, userAgent string) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Cookie", "token="+jwtToken)
+	req.Header.Set("x-distribution-channel", "web")
+	req.Header.Set("User-Agent", userAgent)
+	return req, nil
+}
+
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
+	return body, nil
+}
+
 // UpdateUserSettings 更新用户设置
-func (c *APIClient) UpdateUserSettings(jwtToken, aspectRatio string) bool {
+func (c *APIClient) UpdateUserSettings(jwtToken, aspectRatio string) error {
 	url := "https://chataibot.pro/api/user/update"
 	payload := UpdateUserRequest{
 		Settings: map[string]string{
@@ -45,49 +65,61 @@ func (c *APIClient) UpdateUserSettings(jwtToken, aspectRatio string) bool {
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		fmt.Println("[-] 更新设置序列化失败：", err)
-		return false
+		return fmt.Errorf("marshal update settings request: %w", err)
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonData))
+	req, err := newAuthenticatedRequest(
+		http.MethodPost,
+		url,
+		bytes.NewBuffer(jsonData),
+		jwtToken,
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+	)
+	if err != nil {
+		return fmt.Errorf("build update settings request: %w", err)
+	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Cookie", "token="+jwtToken)
-	req.Header.Set("x-distribution-channel", "web")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
-
-	fmt.Printf("[*] 正在设置图片比例为 [%s]...\n", aspectRatio)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		fmt.Println("[-] 更新设置请求失败：", err)
-		return false
+		return fmt.Errorf("update settings request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		return true
+		return nil
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	fmt.Printf("[-] 更新设置失败(HTTP %d)：%s\n", resp.StatusCode, string(body))
-	return false
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return fmt.Errorf("update settings failed with HTTP %d and unreadable body: %w", resp.StatusCode, err)
+	}
+	return fmt.Errorf("update settings failed (HTTP %d): %s", resp.StatusCode, string(body))
 }
 
 // GetCount 获取剩余请求
 func (c *APIClient) GetCount(jwtToken string) (int, error) {
 	url := "https://chataibot.pro/api/user/answers-count/v2"
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	req.Header.Set("Cookie", "token="+jwtToken)
-	req.Header.Set("x-distribution-channel", "web")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36")
+	req, err := newAuthenticatedRequest(
+		http.MethodGet,
+		url,
+		nil,
+		jwtToken,
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36",
+	)
+	if err != nil {
+		return 0, fmt.Errorf("build quota request: %w", err)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		fmt.Println("[-] 获取剩余额度失败：", err)
-		return 0, err
+		return 0, fmt.Errorf("quota request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return 0, err
+	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("quota request failed (HTTP %d): %s", resp.StatusCode, string(body))
 	}
@@ -115,24 +147,39 @@ func (c *APIClient) GenerateImage(prompt, provider, version, jwtToken string) (s
 		payload["version"] = version
 	}
 
-	jsonData, _ := json.Marshal(payload)
-	req, _ := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonData))
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal generate image request: %w", err)
+	}
+
+	req, err := newAuthenticatedRequest(
+		http.MethodPost,
+		url,
+		bytes.NewBuffer(jsonData),
+		jwtToken,
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36",
+	)
+	if err != nil {
+		return "", fmt.Errorf("build generate image request: %w", err)
+	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Cookie", "token="+jwtToken)
-	req.Header.Set("x-distribution-channel", "web")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36")
 
 	slowClient := *c.httpClient
 	slowClient.Timeout = 5 * time.Minute
 
-	fmt.Println("[*] 正在调用模型...")
 	resp, err := slowClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("[-] 请求发送失败：%v", err)
+		return "", fmt.Errorf("generate image request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("generate image failed (HTTP %d): %s", resp.StatusCode, string(body))
+	}
 
 	var imgResp ChataibotImageResp
 	if err := json.Unmarshal(body, &imgResp); err != nil {
@@ -191,23 +238,34 @@ func (c *APIClient) EditImage(prompt, base64Data, model, jwtToken string) (strin
 		return "", fmt.Errorf("关闭 multipart writer 失败: %v", err)
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, url, bodyBuffer)
+	req, err := newAuthenticatedRequest(
+		http.MethodPost,
+		url,
+		bodyBuffer,
+		jwtToken,
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36",
+	)
+	if err != nil {
+		return "", fmt.Errorf("build edit image request: %w", err)
+	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Cookie", "token="+jwtToken)
-	req.Header.Set("x-distribution-channel", "web")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36")
 
 	slowClient := *c.httpClient
 	slowClient.Timeout = 5 * time.Minute
 
-	fmt.Printf("[*] 正在上传图片并执行图生图任务...\n")
 	resp, err := slowClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("[-] 请求发送失败: %v", err)
+		return "", fmt.Errorf("edit image request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := readResponseBody(resp)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("edit image failed (HTTP %d): %s", resp.StatusCode, string(respBody))
+	}
 
 	var imgResp ChataibotEditImageResp
 	if err := json.Unmarshal(respBody, &imgResp); err != nil {
@@ -268,26 +326,37 @@ func (c *APIClient) MergeImage(prompt string, base64Images []string, mergeType, 
 		return "", fmt.Errorf("关闭 multipart writer 失败: %v", err)
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, url, bodyBuffer)
+	req, err := newAuthenticatedRequest(
+		http.MethodPost,
+		url,
+		bodyBuffer,
+		jwtToken,
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36",
+	)
+	if err != nil {
+		return "", fmt.Errorf("build merge image request: %w", err)
+	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Cookie", "token="+jwtToken)
-	req.Header.Set("x-distribution-channel", "web")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Origin", "https://chataibot.pro")
 	req.Header.Set("Referer", "https://chataibot.pro/app/chat?chat_id=-2")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/146.0.0.0 Safari/537.36")
 
 	slowClient := *c.httpClient
 	slowClient.Timeout = 5 * time.Minute
 
-	fmt.Printf("[*] 正在上传 %d 张图片并执行合并任务...\n", len(base64Images))
 	resp, err := slowClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("[-] 请求发送失败: %v", err)
+		return "", fmt.Errorf("merge image request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := readResponseBody(resp)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("merge image failed (HTTP %d): %s", resp.StatusCode, string(respBody))
+	}
 
 	var imgResp ChataibotEditImageResp
 	if err := json.Unmarshal(respBody, &imgResp); err != nil {

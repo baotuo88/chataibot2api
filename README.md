@@ -135,6 +135,13 @@ go build -o chataibot2api
 
 ## 🔌 API 使用
 
+### 获取模型列表
+
+```bash
+curl http://localhost:8880/v1/models \
+  -H "X-API-Key: your-api-key"
+```
+
 ### 生成图片
 
 ```bash

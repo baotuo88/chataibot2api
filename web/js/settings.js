@@ -18,25 +18,22 @@ function updateSystemInfo(config) {
 
 function renderModels(models) {
   const container = document.getElementById('models-list');
+  container.replaceChildren();
 
   if (models.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-muted);">No models available</div>';
+    const empty = document.createElement('div');
+    empty.className = 'model-empty';
+    empty.textContent = 'No models available';
+    container.appendChild(empty);
     return;
   }
 
-  container.innerHTML = models.map(model => `
-    <div style="
-      padding: 12px 16px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-family: 'Courier New', monospace;
-      font-size: 13px;
-      color: var(--text-primary);
-    ">
-      ${model}
-    </div>
-  `).join('');
+  models.forEach((model) => {
+    const card = document.createElement('div');
+    card.className = 'model-card';
+    card.textContent = model;
+    container.appendChild(card);
+  });
 }
 
 // 表单提交

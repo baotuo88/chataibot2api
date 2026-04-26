@@ -335,6 +335,18 @@ body {
   border-radius: 50%;
 }
 
+.type-dot.primary {
+  background: var(--primary);
+}
+
+.type-dot.success {
+  background: var(--success);
+}
+
+.type-dot.warning {
+  background: var(--warning);
+}
+
 .type-value {
   font-size: 20px;
   font-weight: 600;
@@ -594,5 +606,394 @@ tr:hover {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+.models-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.docs-block {
+  margin-top: 32px;
+}
+
+.docs-shell {
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.docs-endpoint {
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.docs-label {
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.docs-label.spaced {
+  margin: 16px 0 12px;
+}
+
+.docs-pre {
+  background: var(--bg-tertiary);
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  color: var(--text-primary);
+}
+
+.block-spaced {
+  margin-bottom: 32px;
+}
+
+.settings-help {
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.mono-input {
+  font-family: "Courier New", monospace;
+}
+
+.loading-muted {
+  color: var(--text-muted);
+}
+
+.model-empty {
+  color: var(--text-muted);
+}
+
+.model-card {
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.chart-card-spaced {
+  margin-bottom: 32px;
+}
+
+.actions-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.input-mono-sm {
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+}
+
+.grid-two-equal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.table-empty-cell {
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.table-scroll-700 {
+  max-height: 700px;
+  overflow-y: auto;
+}
+
+.table-scroll-600 {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.table-head-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.col-w-180 {
+  width: 180px;
+}
+
+.col-w-160 {
+  width: 160px;
+}
+
+.col-w-150 {
+  width: 150px;
+}
+
+.col-w-120 {
+  width: 120px;
+}
+
+.col-w-100 {
+  width: 100px;
+}
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal-content-fit {
+  max-width: 90%;
+  max-height: 90%;
+  position: relative;
+}
+
+.modal-image {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 8px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  font-size: 24px;
+}
+
+.stats-grid-spaced {
+  margin-bottom: 32px;
+}
+
+.two-panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.result-stage {
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.result-actions {
+  margin-top: 16px;
+  display: none;
+  gap: 12px;
+}
+
+.result-actions.visible {
+  display: flex;
+}
+
+.loading-panel {
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+.error-panel {
+  text-align: center;
+  color: var(--danger);
+}
+
+.error-icon {
+  margin-bottom: 16px;
+}
+
+.generated-image {
+  max-width: 100%;
+  max-height: 600px;
+  border-radius: 8px;
+  display: block;
+  margin: 0 auto;
+}
+
+.cell-mono-xs-muted {
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cell-mono-xs {
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+}
+
+.cell-mono-sm {
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+}
+
+.cell-truncate {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge-compact,
+.log-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  display: inline-block;
+}
+
+.status-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.status-failure {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.action-btn-compact {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.text-muted-xs {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.warning-row {
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.warning-mark {
+  color: var(--danger);
+  margin-left: 8px;
+}
+
+.jwt-preview-code {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.quota-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  display: inline-block;
+}
+
+.quota-high {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.quota-medium {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+}
+
+.quota-low {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.updated-code {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-danger-compact {
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.toast-warning {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 20px;
+  background: var(--warning);
+  color: white;
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: 9999;
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast-warning.hide {
+  animation: slideOut 0.3s ease-out;
+}
+
+.log-badge {
+  text-transform: uppercase;
+}
+
+.log-level-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.log-level-warn {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+}
+
+.log-level-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.log-level-info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary);
+}
+
+@media (max-width: 960px) {
+  .two-panel-grid,
+  .grid-two-equal {
+    grid-template-columns: 1fr;
   }
 }

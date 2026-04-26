@@ -100,14 +100,14 @@
 
       <div class="content-wrapper">
         <!-- Add Account Form -->
-        <div class="chart-card" style="margin-bottom: 32px;">
+        <div class="chart-card chart-card-spaced">
           <div class="card-header">
             <h3 data-i18n="accounts.add_account">添加账号</h3>
           </div>
           <div class="chart-content">
             <!-- 批量导入按钮 -->
-            <div style="display: flex; gap: 12px; margin-bottom: 20px;">
-              <button class="btn btn-secondary" onclick="document.getElementById('batch-import-input').click()">
+            <div class="actions-row">
+              <button class="btn btn-secondary" id="import-accounts-btn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
@@ -115,9 +115,9 @@
                 </svg>
                 批量导入 JSON
               </button>
-              <input type="file" id="batch-import-input" accept=".json" style="display: none;" onchange="importAccounts(event)">
+              <input type="file" id="batch-import-input" accept=".json" class="hidden-file-input">
 
-              <button class="btn btn-secondary" onclick="exportAccounts()">
+              <button class="btn btn-secondary" id="export-accounts-btn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
@@ -136,11 +136,11 @@
                   data-i18n-placeholder="accounts.jwt_placeholder"
                   placeholder="粘贴完整的 JWT token"
                   required
-                  style="font-family: 'Courier New', monospace; font-size: 13px;"
+                  class="input-mono-sm"
                 ></textarea>
               </div>
 
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+              <div class="grid-two-equal">
                 <div class="form-group">
                   <label data-i18n="accounts.email">邮箱（可选）</label>
                   <input type="text" id="email-input" placeholder="user@example.com">
@@ -182,7 +182,7 @@
             </thead>
             <tbody id="accounts-table-body">
               <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-muted);">
+                <td colspan="7" class="table-empty-cell">
                   <span data-i18n="accounts.no_accounts">暂无账号</span>
                 </td>
               </tr>

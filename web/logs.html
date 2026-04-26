@@ -92,7 +92,7 @@
           <p data-i18n="logs.subtitle">查看系统运行日志</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary" onclick="refreshLogs()">
+          <button class="btn btn-secondary" id="refresh-logs-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10"></polyline>
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
@@ -104,7 +104,7 @@
 
       <div class="content-wrapper">
         <!-- Log Stats -->
-        <div class="stats-grid" style="margin-bottom: 32px;">
+        <div class="stats-grid stats-grid-spaced">
           <div class="stat-card">
             <div class="stat-icon blue">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -165,18 +165,18 @@
           <div class="card-header">
             <h3>Recent Logs</h3>
           </div>
-          <div style="max-height: 600px; overflow-y: auto;">
+          <div class="table-scroll-600">
             <table>
-              <thead style="position: sticky; top: 0; z-index: 10;">
+              <thead class="table-head-sticky">
                 <tr>
-                  <th style="width: 180px;" data-i18n="logs.time">时间</th>
-                  <th style="width: 100px;" data-i18n="logs.level">级别</th>
+                  <th class="col-w-180" data-i18n="logs.time">时间</th>
+                  <th class="col-w-100" data-i18n="logs.level">级别</th>
                   <th data-i18n="logs.message">消息</th>
                 </tr>
               </thead>
               <tbody id="logs-table-body">
                 <tr>
-                  <td colspan="3" style="text-align: center; color: var(--text-muted);">
+                  <td colspan="3" class="table-empty-cell">
                     <span data-i18n="logs.no_logs">暂无日志</span>
                   </td>
                 </tr>

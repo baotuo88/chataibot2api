@@ -20,66 +20,76 @@ async function loadHistory() {
 
 function renderHistory(history) {
   const tbody = document.getElementById('history-table-body');
+  tbody.replaceChildren();
 
   if (history.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="7" style="text-align: center; color: var(--text-muted);">
-          暂无请求历史
-        </td>
-      </tr>
-    `;
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 7;
+    cell.className = 'table-empty-cell';
+    cell.textContent = '暂无请求历史';
+    row.appendChild(cell);
+    tbody.appendChild(row);
     return;
   }
 
-  tbody.innerHTML = history.map(item => {
+  history.forEach((item) => {
     const statusColor = item.success ? 'var(--success)' : 'var(--danger)';
     const statusBg = item.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)';
     const statusText = item.success ? '成功' : '失败';
+    const row = document.createElement('tr');
 
-    return `
-      <tr>
-        <td style="font-family: 'Courier New', monospace; font-size: 12px; color: var(--text-muted);">
-          ${formatTime(item.time)}
-        </td>
-        <td>
-          <span style="
-            padding: 4px 10px;
-            background: ${statusBg};
-            color: ${statusColor};
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 12px;
-          ">
-            ${statusText}
-          </span>
-        </td>
-        <td style="font-family: 'Courier New', monospace; font-size: 13px;">
-          ${item.model}
-        </td>
-        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(item.prompt)}">
-          ${escapeHtml(item.prompt)}
-        </td>
-        <td style="font-family: 'Courier New', monospace; font-size: 12px;">
-          ${item.size}
-        </td>
-        <td style="font-family: 'Courier New', monospace; font-size: 12px;">
-          ${item.duration}ms
-        </td>
-        <td>
-          ${item.success && item.imageUrl ? `
-            <button class="btn btn-secondary" onclick="viewImage('${item.imageUrl}')" style="padding: 4px 12px; font-size: 12px;">
-              查看
-            </button>
-          ` : `
-            <span style="color: var(--text-muted); font-size: 12px;" title="${escapeHtml(item.error || '')}">
-              ${item.error ? '错误' : '-'}
-            </span>
-          `}
-        </td>
-      </tr>
-    `;
-  }).join('');
+    const timeCell = document.createElement('td');
+    timeCell.className = 'cell-mono-xs-muted';
+    timeCell.textContent = formatTime(item.time);
+    row.appendChild(timeCell);
+
+    const statusCell = document.createElement('td');
+    const statusBadge = document.createElement('span');
+    statusBadge.className = `badge-compact ${item.success ? 'status-success' : 'status-failure'}`;
+    statusBadge.textContent = statusText;
+    statusCell.appendChild(statusBadge);
+    row.appendChild(statusCell);
+
+    const modelCell = document.createElement('td');
+    modelCell.className = 'cell-mono-sm';
+    modelCell.textContent = item.model || '';
+    row.appendChild(modelCell);
+
+    const promptCell = document.createElement('td');
+    promptCell.className = 'cell-truncate';
+    promptCell.title = item.prompt || '';
+    promptCell.textContent = item.prompt || '';
+    row.appendChild(promptCell);
+
+    const sizeCell = document.createElement('td');
+    sizeCell.className = 'cell-mono-xs';
+    sizeCell.textContent = item.size || '';
+    row.appendChild(sizeCell);
+
+    const durationCell = document.createElement('td');
+    durationCell.className = 'cell-mono-xs';
+    durationCell.textContent = `${item.duration}ms`;
+    row.appendChild(durationCell);
+
+    const actionCell = document.createElement('td');
+    if (item.success && item.imageUrl) {
+      const button = document.createElement('button');
+      button.className = 'btn btn-secondary action-btn-compact';
+      button.textContent = '查看';
+      button.addEventListener('click', () => viewImage(item.imageUrl));
+      actionCell.appendChild(button);
+    } else {
+      const errorText = document.createElement('span');
+      errorText.className = 'text-muted-xs';
+      errorText.title = item.error || '';
+      errorText.textContent = item.error ? '错误' : '-';
+      actionCell.appendChild(errorText);
+    }
+    row.appendChild(actionCell);
+
+    tbody.appendChild(row);
+  });
 }
 
 function formatTime(timeStr) {
@@ -97,22 +107,16 @@ function formatTime(timeStr) {
   }
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 function viewImage(url) {
   const modal = document.getElementById('image-modal');
   const img = document.getElementById('modal-image');
   img.src = url;
-  modal.style.display = 'flex';
+  modal.classList.add('open');
 }
 
 function closeImageModal() {
   const modal = document.getElementById('image-modal');
-  modal.style.display = 'none';
+  modal.classList.remove('open');
 }
 
 function refreshHistory() {
@@ -121,6 +125,24 @@ function refreshHistory() {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+  const refreshButton = document.getElementById('refresh-history-btn');
+  const modal = document.getElementById('image-modal');
+  const closeModalButton = document.getElementById('close-image-modal-btn');
+
+  if (refreshButton) {
+    refreshButton.addEventListener('click', refreshHistory);
+  }
+  if (modal) {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeImageModal();
+      }
+    });
+  }
+  if (closeModalButton) {
+    closeModalButton.addEventListener('click', closeImageModal);
+  }
+
   loadHistory();
   historyInterval = setInterval(loadHistory, 10000);
 });

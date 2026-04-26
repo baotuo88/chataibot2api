@@ -26,6 +26,9 @@ var maxBodyMB, maxImages, acquireTimeoutSec int
 var authKey, accountsFile string
 var apiClient *api.APIClient
 var appState = NewAppState()
+var fetchQuota = func(jwt string) (int, error) {
+	return apiClient.GetCount(jwt)
+}
 
 //go:embed web
 var webUI embed.FS
@@ -40,8 +43,10 @@ type Account struct {
 
 type SimplePool struct {
 	accounts []*Account
+	leased   map[string]struct{}
 	maxSize  int
 	mu       sync.Mutex
+	cond     *sync.Cond
 }
 
 type OpenAIImageReq struct {
@@ -59,6 +64,18 @@ type OpenAIImageResp struct {
 
 type ImageData struct {
 	URL string `json:"url"`
+}
+
+type OpenAIModelListResp struct {
+	Object string            `json:"object"`
+	Data   []OpenAIModelInfo `json:"data"`
+}
+
+type OpenAIModelInfo struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int64  `json:"created"`
+	OwnedBy string `json:"owned_by"`
 }
 
 type ModelConfig struct {
@@ -191,11 +208,12 @@ func init() {
 	flag.IntVar(&acquireTimeoutSec, "acquire-timeout-sec", 45, "账号池获取账号的最长等待时间（秒）")
 	flag.StringVar(&authKey, "auth-key", "", "接口鉴权 API Key，留空表示关闭鉴权")
 	flag.StringVar(&accountsFile, "accounts-file", "accounts.json", "账号数据文件路径")
-	flag.Parse()
-	applyEnvOverrides()
 }
 
 func main() {
+	flag.Parse()
+	applyEnvOverrides()
+
 	if maxBodyMB < 1 {
 		logEvent("warn", "max-body-mb 非法，回退到 20")
 		maxBodyMB = 20
@@ -246,6 +264,7 @@ func main() {
 	mux.HandleFunc("/api/accounts/export", RequireAPIKey(ExportAccountsHandler(accountPool)))
 	mux.HandleFunc("/api/history", RequireAPIKey(GetRequestHistoryHandler))
 	mux.HandleFunc("/healthz", HealthHandler)
+	mux.HandleFunc("/v1/models", RequireAPIKey(ModelsHandler))
 	mux.HandleFunc("/v1/images/generations", RequireAPIKey(ImageHandler(accountPool)))
 
 	server := &http.Server{
@@ -339,74 +358,116 @@ func HealthHandler(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+func ModelsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	models := supportedModels()
+	data := make([]OpenAIModelInfo, 0, len(models))
+	for _, model := range models {
+		data = append(data, OpenAIModelInfo{
+			ID:      model,
+			Object:  "model",
+			Created: 0,
+			OwnedBy: "chataibot2api",
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(OpenAIModelListResp{
+		Object: "list",
+		Data:   data,
+	})
+}
+
 func StartPool(poolSize int, initialAccounts []*Account) *SimplePool {
 	p := &SimplePool{
 		accounts: initialAccounts,
+		leased:   make(map[string]struct{}),
 		maxSize:  poolSize,
 	}
+	p.cond = sync.NewCond(&p.mu)
 
 	logEvent("info", fmt.Sprintf("号池已初始化，当前账号数=%d", len(initialAccounts)))
 	return p
 }
 
 func (p *SimplePool) Acquire(ctx context.Context, cost int, wait time.Duration) (*Account, error) {
+	if wait > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, wait)
+		defer cancel()
+	}
+
+	done := make(chan struct{})
+	defer close(done)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			p.mu.Lock()
+			p.cond.Broadcast()
+			p.mu.Unlock()
+		case <-done:
+		}
+	}()
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	bestIdx := -1
-	for i, acc := range p.accounts {
-		if acc.Quota >= cost {
-			if bestIdx == -1 || acc.Quota < p.accounts[bestIdx].Quota {
-				bestIdx = i
-			}
+	for {
+		if bestIdx := p.findAvailableIndexLocked(cost); bestIdx >= 0 {
+			acc := p.accounts[bestIdx]
+			p.leased[acc.JWT] = struct{}{}
+			logEvent("info", fmt.Sprintf("分配账号，额度=%d，请求成本=%d", acc.Quota, cost))
+			return acc, nil
 		}
+
+		if err := ctx.Err(); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, fmt.Errorf("timed out waiting for available account with sufficient quota (required: %d)", cost)
+			}
+			return nil, err
+		}
+
+		p.cond.Wait()
 	}
-
-	if bestIdx == -1 {
-		return nil, fmt.Errorf("no available account with sufficient quota (required: %d)", cost)
-	}
-
-	acc := p.accounts[bestIdx]
-	p.accounts = append(p.accounts[:bestIdx], p.accounts[bestIdx+1:]...)
-
-	logEvent("info", fmt.Sprintf("分配账号，额度=%d，请求成本=%d", acc.Quota, cost))
-	return acc, nil
 }
 
 func (p *SimplePool) Release(acc *Account) {
-	quota, err := apiClient.GetCount(acc.JWT)
-	if err != nil {
-		logEvent("warn", fmt.Sprintf("获取账号额度失败: %v，丢弃账号", err))
-		return
-	}
-	acc.Quota = quota
-	acc.UpdatedAt = time.Now()
-
-	if acc.Quota < 2 {
-		logEvent("warn", fmt.Sprintf("账号额度过低，丢弃回收，额度=%d", acc.Quota))
-		return
-	}
+	quota, err := fetchQuota(acc.JWT)
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if len(p.accounts) < p.maxSize {
-		p.accounts = append(p.accounts, acc)
-		logEvent("info", fmt.Sprintf("账号回收，当前额度=%d", acc.Quota))
+	delete(p.leased, acc.JWT)
+
+	idx := accountIndexByJWT(p.accounts, acc.JWT)
+	if idx < 0 {
+		p.cond.Broadcast()
 		return
 	}
 
-	minIdx := 0
-	for i := 1; i < len(p.accounts); i++ {
-		if p.accounts[i].Quota < p.accounts[minIdx].Quota {
-			minIdx = i
-		}
+	if err != nil {
+		logEvent("warn", fmt.Sprintf("获取账号额度失败: %v，保留账号原有额度=%d", err, p.accounts[idx].Quota))
+		p.cond.Broadcast()
+		return
 	}
 
-	if acc.Quota > p.accounts[minIdx].Quota {
-		p.accounts[minIdx] = acc
-		logEvent("info", fmt.Sprintf("账号替换最低额度项，当前额度=%d", acc.Quota))
+	p.accounts[idx].Quota = quota
+	p.accounts[idx].UpdatedAt = time.Now()
+
+	if quota < 2 {
+		p.accounts = append(p.accounts[:idx], p.accounts[idx+1:]...)
+		logEvent("warn", fmt.Sprintf("账号额度过低，移出池子，额度=%d", quota))
+		p.cond.Broadcast()
+		return
 	}
+
+	logEvent("info", fmt.Sprintf("账号回收，当前额度=%d", quota))
+	p.cond.Broadcast()
 }
 
 func ImageHandler(pool *SimplePool) http.HandlerFunc {
@@ -508,10 +569,9 @@ func ImageHandler(pool *SimplePool) http.HandlerFunc {
 		}
 		defer pool.Release(acc)
 
-		success := apiClient.UpdateUserSettings(acc.JWT, ratio)
-		if !success {
-			appState.RecordRequestFailure(req.Model, mode, "Failed to update user settings")
-			logEvent("error", fmt.Sprintf("更新用户设置失败，model=%s ratio=%s", req.Model, ratio))
+		if err := apiClient.UpdateUserSettings(acc.JWT, ratio); err != nil {
+			appState.RecordRequestFailure(req.Model, mode, err.Error())
+			logEvent("error", fmt.Sprintf("更新用户设置失败，model=%s ratio=%s err=%v", req.Model, ratio, err))
 			http.Error(w, "Failed to update user settings", http.StatusInternalServerError)
 			return
 		}
@@ -582,7 +642,7 @@ func LoadAccountsFromFile(filepath string) ([]*Account, error) {
 			continue
 		}
 
-		quota, err := apiClient.GetCount(jwt)
+		quota, err := fetchQuota(jwt)
 		if err != nil {
 			logEvent("warn", fmt.Sprintf("跳过无效账号，来源=%s index=%d err=%v", filepath, i, err))
 			continue
@@ -658,7 +718,7 @@ func AddAccountHandler(pool *SimplePool) http.HandlerFunc {
 			return
 		}
 
-		quota, err := apiClient.GetCount(req.JWT)
+		quota, err := fetchQuota(req.JWT)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Invalid JWT: %v", err), http.StatusBadRequest)
 			return
@@ -681,6 +741,7 @@ func AddAccountHandler(pool *SimplePool) http.HandlerFunc {
 			Quota:     quota,
 			UpdatedAt: time.Now(),
 		})
+		pool.cond.Broadcast()
 		pool.mu.Unlock()
 
 		if err := SaveAccountsToFile(accountsFile, pool); err != nil {
@@ -732,7 +793,10 @@ func DeleteAccountHandler(pool *SimplePool) http.HandlerFunc {
 			return
 		}
 
+		removedJWT := pool.accounts[req.Index].JWT
 		pool.accounts = append(pool.accounts[:req.Index], pool.accounts[req.Index+1:]...)
+		delete(pool.leased, removedJWT)
+		pool.cond.Broadcast()
 		pool.mu.Unlock()
 
 		if err := SaveAccountsToFile(accountsFile, pool); err != nil {
@@ -943,15 +1007,34 @@ func (p *SimplePool) Snapshot() PoolSnapshot {
 
 	quotas := make([]int, 0, len(p.accounts))
 	for _, acc := range p.accounts {
+		if _, leased := p.leased[acc.JWT]; leased {
+			continue
+		}
 		quotas = append(quotas, acc.Quota)
 	}
 
 	return PoolSnapshot{
 		MaxSize:       p.maxSize,
 		BufferedNew:   0,
-		ReadyAccounts: len(p.accounts),
+		ReadyAccounts: len(quotas),
 		Quotas:        quotas,
 	}
+}
+
+func (p *SimplePool) findAvailableIndexLocked(cost int) int {
+	bestIdx := -1
+	for i, acc := range p.accounts {
+		if _, leased := p.leased[acc.JWT]; leased {
+			continue
+		}
+		if acc.Quota < cost {
+			continue
+		}
+		if bestIdx == -1 || acc.Quota < p.accounts[bestIdx].Quota {
+			bestIdx = i
+		}
+	}
+	return bestIdx
 }
 
 func logEvent(level, message string) {
@@ -994,7 +1077,7 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self'; style-src-attr 'none'; script-src 'self'; script-src-attr 'none'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }

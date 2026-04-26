@@ -1,6 +1,13 @@
 // Dashboard 页面逻辑
 let statusInterval;
 
+function createQuotaChip(text) {
+  const chip = document.createElement('span');
+  chip.className = 'quota-chip';
+  chip.textContent = text;
+  return chip;
+}
+
 async function loadDashboard() {
   try {
     const data = await api.getStatus();
@@ -38,11 +45,9 @@ function updateDashboard(data) {
   // 更新额度显示
   const quotaChips = document.getElementById('quota-chips');
   if (pool.quotas && pool.quotas.length > 0) {
-    quotaChips.innerHTML = pool.quotas
-      .map(q => `<span class="quota-chip">${q}</span>`)
-      .join('');
+    quotaChips.replaceChildren(...pool.quotas.map((q) => createQuotaChip(String(q))));
   } else {
-    quotaChips.innerHTML = '<span class="quota-chip">--</span>';
+    quotaChips.replaceChildren(createQuotaChip('--'));
   }
 
   // 更新系统信息

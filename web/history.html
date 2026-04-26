@@ -92,7 +92,7 @@
           <p>查看最近的 API 请求记录</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary" onclick="refreshHistory()">
+          <button class="btn btn-secondary" id="refresh-history-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10"></polyline>
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
@@ -108,22 +108,22 @@
           <div class="card-header">
             <h3>请求记录（最近 100 条）</h3>
           </div>
-          <div style="max-height: 700px; overflow-y: auto;">
+          <div class="table-scroll-700">
             <table>
-              <thead style="position: sticky; top: 0; z-index: 10;">
+              <thead class="table-head-sticky">
                 <tr>
-                  <th style="width: 160px;">时间</th>
-                  <th style="width: 100px;">状态</th>
-                  <th style="width: 150px;">模型</th>
+                  <th class="col-w-160">时间</th>
+                  <th class="col-w-100">状态</th>
+                  <th class="col-w-150">模型</th>
                   <th>提示词</th>
-                  <th style="width: 100px;">尺寸</th>
-                  <th style="width: 100px;">耗时</th>
-                  <th style="width: 120px;">操作</th>
+                  <th class="col-w-100">尺寸</th>
+                  <th class="col-w-100">耗时</th>
+                  <th class="col-w-120">操作</th>
                 </tr>
               </thead>
               <tbody id="history-table-body">
                 <tr>
-                  <td colspan="7" style="text-align: center; color: var(--text-muted);">
+                  <td colspan="7" class="table-empty-cell">
                     暂无请求历史
                   </td>
                 </tr>
@@ -136,10 +136,10 @@
   </div>
 
   <!-- 图片预览模态框 -->
-  <div id="image-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10000; align-items: center; justify-content: center;" onclick="closeImageModal()">
-    <div style="max-width: 90%; max-height: 90%; position: relative;">
-      <img id="modal-image" style="max-width: 100%; max-height: 90vh; border-radius: 8px;">
-      <button onclick="closeImageModal()" style="position: absolute; top: 20px; right: 20px; background: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 24px;">×</button>
+  <div id="image-modal" class="modal-overlay">
+    <div class="modal-content-fit">
+      <img id="modal-image" class="modal-image">
+      <button id="close-image-modal-btn" class="modal-close">×</button>
     </div>
   </div>
 
