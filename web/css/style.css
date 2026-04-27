@@ -750,6 +750,76 @@ tr:hover {
   font-size: 13px;
 }
 
+.import-summary {
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+}
+
+.import-summary-title {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.import-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.import-summary-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.import-summary-stat.success {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+}
+
+.import-summary-stat.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+}
+
+.import-summary-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+}
+
+.import-summary-list li + li {
+  margin-top: 6px;
+}
+
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 20px;
+  color: white;
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: 9999;
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast-success {
+  background: var(--success);
+}
+
+.toast-error {
+  background: var(--danger);
+}
+
 .btn-toolbar {
   min-width: 88px;
 }
@@ -997,19 +1067,10 @@ tr:hover {
 }
 
 .toast-warning {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 16px 20px;
   background: var(--warning);
-  color: white;
-  border-radius: 8px;
-  box-shadow: var(--shadow-lg);
-  z-index: 9999;
-  animation: slideIn 0.3s ease-out;
 }
 
-.toast-warning.hide {
+.toast.hide {
   animation: slideOut 0.3s ease-out;
 }
 

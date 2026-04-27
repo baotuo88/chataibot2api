@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	pathpkg "path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -215,6 +216,44 @@ func TestSaveAccountSliceToFileCreatesParentDir(t *testing.T) {
 	}
 }
 
+func TestSaveAccountSliceToFileOverwritesAtomically(t *testing.T) {
+	dir := t.TempDir()
+	filepath := dir + "/accounts.json"
+
+	if err := os.WriteFile(filepath, []byte("stale"), 0600); err != nil {
+		t.Fatalf("seed file failed: %v", err)
+	}
+
+	accounts := []*Account{
+		{JWT: "jwt-1", Email: "user@example.com", Quota: 10, UpdatedAt: time.Now()},
+		{JWT: "jwt-2", Email: "user2@example.com", Quota: 20, UpdatedAt: time.Now()},
+	}
+	if err := SaveAccountSliceToFile(filepath, accounts); err != nil {
+		t.Fatalf("save account slice failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		t.Fatalf("read saved file failed: %v", err)
+	}
+
+	var saved []AccountData
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatalf("saved file is not valid json: %v", err)
+	}
+	if len(saved) != 2 {
+		t.Fatalf("expected 2 accounts, got %d", len(saved))
+	}
+
+	matches, err := pathpkg.Glob(dir + "/.tmp-accounts.json.*")
+	if err != nil {
+		t.Fatalf("glob temp files failed: %v", err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("expected no leftover temp files, found %v", matches)
+	}
+}
+
 func TestListAccountsHandlerSupportsPagination(t *testing.T) {
 	pool := StartPool(5, []*Account{
 		{JWT: "jwt-1", Email: "a@example.com", Quota: 30, UpdatedAt: time.Now()},
@@ -252,5 +291,81 @@ func TestListAccountsHandlerSupportsPagination(t *testing.T) {
 	}
 	if resp.Accounts[0].Index != 2 || resp.Accounts[1].Index != 3 {
 		t.Fatalf("unexpected account indexes on page 2: %+v", resp.Accounts)
+	}
+}
+
+func TestImportAccountsHandlerAggregatesResults(t *testing.T) {
+	withFetchQuotaStub(t, func(jwt string) (int, error) {
+		switch jwt {
+		case "valid-1":
+			return 8, nil
+		case "valid-2":
+			return 12, nil
+		case "low":
+			return 1, nil
+		default:
+			return 0, errors.New("invalid token")
+		}
+	})
+
+	originalAccountsFile := accountsFile
+	accountsFile = t.TempDir() + "/accounts.json"
+	t.Cleanup(func() {
+		accountsFile = originalAccountsFile
+	})
+
+	pool := StartPool(5, []*Account{
+		{JWT: "existing", Email: "existing@example.com", Quota: 20, UpdatedAt: time.Now()},
+	})
+
+	body := bytes.NewBufferString(`[
+	  {"jwt":"valid-1","email":"ok1@example.com","note":"ok1"},
+	  {"jwt":"existing","email":"dup@example.com"},
+	  {"jwt":"low","email":"low@example.com"},
+	  {"jwt":"bad","email":"bad@example.com"},
+	  {"jwt":"valid-1","email":"dup-in-file@example.com"},
+	  {"jwt":"valid-2","email":"ok2@example.com","note":"ok2"}
+	]`)
+
+	req, err := http.NewRequest(http.MethodPost, "/api/accounts/import", body)
+	if err != nil {
+		t.Fatalf("build request failed: %v", err)
+	}
+	rec := &testResponseWriter{}
+
+	ImportAccountsHandler(pool).ServeHTTP(rec, req)
+
+	if rec.status != http.StatusOK {
+		t.Fatalf("unexpected status code: %d", rec.status)
+	}
+
+	var resp BatchImportAccountsResponse
+	if err := json.NewDecoder(&rec.body).Decode(&resp); err != nil {
+		t.Fatalf("decode response failed: %v", err)
+	}
+
+	if resp.SuccessCount != 2 || resp.FailCount != 4 {
+		t.Fatalf("unexpected import summary: %+v", resp)
+	}
+	if len(resp.Results) != 6 {
+		t.Fatalf("expected 6 result entries, got %d", len(resp.Results))
+	}
+	if !resp.Results[0].Success || resp.Results[0].Quota != 8 {
+		t.Fatalf("unexpected first import result: %+v", resp.Results[0])
+	}
+	if resp.Results[1].Error != "JWT already exists" {
+		t.Fatalf("unexpected duplicate error: %+v", resp.Results[1])
+	}
+	if resp.Results[2].Error != "JWT quota too low: 1" {
+		t.Fatalf("unexpected low quota error: %+v", resp.Results[2])
+	}
+	if resp.Results[3].Error == "" || resp.Results[4].Error != "Duplicate JWT in import file" {
+		t.Fatalf("unexpected import errors: %+v %+v", resp.Results[3], resp.Results[4])
+	}
+
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	if len(pool.accounts) != 3 {
+		t.Fatalf("expected 3 accounts after import, got %d", len(pool.accounts))
 	}
 }

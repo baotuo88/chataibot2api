@@ -173,6 +173,21 @@ type AddAccountRequest struct {
 	Note  string `json:"note,omitempty"`
 }
 
+type BatchImportAccountResult struct {
+	Index   int    `json:"index"`
+	Email   string `json:"email,omitempty"`
+	Note    string `json:"note,omitempty"`
+	Success bool   `json:"success"`
+	Quota   int    `json:"quota,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+type BatchImportAccountsResponse struct {
+	SuccessCount int                        `json:"successCount"`
+	FailCount    int                        `json:"failCount"`
+	Results      []BatchImportAccountResult `json:"results"`
+}
+
 type DeleteAccountRequest struct {
 	Index int `json:"index"`
 }
@@ -267,6 +282,7 @@ func main() {
 	mux.HandleFunc("/api/status", RequireAPIKey(StatusHandler(accountPool)))
 	mux.HandleFunc("/api/accounts", RequireAPIKey(ListAccountsHandler(accountPool)))
 	mux.HandleFunc("/api/accounts/add", RequireAPIKey(AddAccountHandler(accountPool)))
+	mux.HandleFunc("/api/accounts/import", RequireAPIKey(ImportAccountsHandler(accountPool)))
 	mux.HandleFunc("/api/accounts/delete", RequireAPIKey(DeleteAccountHandler(accountPool)))
 	mux.HandleFunc("/api/accounts/export", RequireAPIKey(ExportAccountsHandler(accountPool)))
 	mux.HandleFunc("/api/history", RequireAPIKey(GetRequestHistoryHandler))
@@ -681,7 +697,8 @@ func SaveAccountsToFile(filepath string, pool *SimplePool) error {
 }
 
 func SaveAccountSliceToFile(filepath string, accounts []*Account) error {
-	if err := os.MkdirAll(pathpkg.Dir(filepath), 0755); err != nil {
+	dir := pathpkg.Dir(filepath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
@@ -700,7 +717,49 @@ func SaveAccountSliceToFile(filepath string, accounts []*Account) error {
 		return err
 	}
 
-	return os.WriteFile(filepath, data, 0600)
+	return writeFileAtomically(filepath, data, 0600)
+}
+
+func writeFileAtomically(filepath string, data []byte, perm os.FileMode) (err error) {
+	dir := pathpkg.Dir(filepath)
+
+	tmpFile, err := os.CreateTemp(dir, ".tmp-"+pathpkg.Base(filepath)+".*")
+	if err != nil {
+		return err
+	}
+
+	tmpPath := tmpFile.Name()
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if err = tmpFile.Chmod(perm); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if _, err = tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err = tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return err
+	}
+	if err = tmpFile.Close(); err != nil {
+		return err
+	}
+	if err = os.Rename(tmpPath, filepath); err != nil {
+		return err
+	}
+
+	if dirHandle, openErr := os.Open(dir); openErr == nil {
+		_ = dirHandle.Sync()
+		_ = dirHandle.Close()
+	}
+
+	return nil
 }
 
 func AddAccountHandler(pool *SimplePool) http.HandlerFunc {
@@ -769,6 +828,132 @@ func AddAccountHandler(pool *SimplePool) http.HandlerFunc {
 	}
 }
 
+type pendingImportedAccount struct {
+	account     *Account
+	resultIndex int
+}
+
+func ImportAccountsHandler(pool *SimplePool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var reqs []AddAccountRequest
+		if err := json.NewDecoder(r.Body).Decode(&reqs); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if len(reqs) == 0 {
+			http.Error(w, "At least one account is required", http.StatusBadRequest)
+			return
+		}
+
+		pool.mu.Lock()
+		existingJWTs := make(map[string]struct{}, len(pool.accounts))
+		for _, acc := range pool.accounts {
+			existingJWTs[acc.JWT] = struct{}{}
+		}
+		pool.mu.Unlock()
+
+		results := make([]BatchImportAccountResult, len(reqs))
+		pending := make([]pendingImportedAccount, 0, len(reqs))
+		seenInBatch := make(map[string]struct{}, len(reqs))
+
+		for i, req := range reqs {
+			req.JWT = strings.TrimSpace(req.JWT)
+			req.Email = strings.TrimSpace(req.Email)
+			req.Note = strings.TrimSpace(req.Note)
+
+			result := BatchImportAccountResult{
+				Index: i,
+				Email: req.Email,
+				Note:  req.Note,
+			}
+
+			switch {
+			case req.JWT == "":
+				result.Error = "JWT is required"
+			case containsJWT(existingJWTs, req.JWT):
+				result.Error = "JWT already exists"
+			case containsJWT(seenInBatch, req.JWT):
+				result.Error = "Duplicate JWT in import file"
+			default:
+				quota, err := fetchQuota(req.JWT)
+				if err != nil {
+					result.Error = fmt.Sprintf("Invalid JWT: %v", err)
+					break
+				}
+				if quota < 2 {
+					result.Error = fmt.Sprintf("JWT quota too low: %d", quota)
+					break
+				}
+
+				result.Success = true
+				result.Quota = quota
+				seenInBatch[req.JWT] = struct{}{}
+				pending = append(pending, pendingImportedAccount{
+					account: &Account{
+						JWT:       req.JWT,
+						Email:     req.Email,
+						Note:      req.Note,
+						Quota:     quota,
+						UpdatedAt: time.Now(),
+					},
+					resultIndex: i,
+				})
+			}
+
+			results[i] = result
+		}
+
+		addedCount := 0
+		if len(pending) > 0 {
+			pool.mu.Lock()
+			for _, item := range pending {
+				if accountIndexByJWT(pool.accounts, item.account.JWT) >= 0 {
+					results[item.resultIndex].Success = false
+					results[item.resultIndex].Quota = 0
+					results[item.resultIndex].Error = "JWT already exists"
+					continue
+				}
+				pool.accounts = append(pool.accounts, item.account)
+				addedCount++
+			}
+			if addedCount > 0 {
+				pool.cond.Broadcast()
+			}
+			pool.mu.Unlock()
+
+			if addedCount > 0 {
+				if err := SaveAccountsToFile(accountsFile, pool); err != nil {
+					logEvent("error", fmt.Sprintf("批量导入后保存账号文件失败: %v", err))
+				}
+			}
+		}
+
+		successCount := 0
+		failCount := 0
+		for _, result := range results {
+			if result.Success {
+				successCount++
+				continue
+			}
+			failCount++
+		}
+
+		logEvent("success", fmt.Sprintf("批量导入完成，成功=%d 失败=%d", successCount, failCount))
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(BatchImportAccountsResponse{
+			SuccessCount: successCount,
+			FailCount:    failCount,
+			Results:      results,
+		})
+	}
+}
+
 func accountIndexByJWT(accounts []*Account, jwt string) int {
 	for i, acc := range accounts {
 		if acc.JWT == jwt {
@@ -782,6 +967,11 @@ func hasAccountJWT(pool *SimplePool, jwt string) bool {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 	return accountIndexByJWT(pool.accounts, jwt) >= 0
+}
+
+func containsJWT(set map[string]struct{}, jwt string) bool {
+	_, exists := set[jwt]
+	return exists
 }
 
 func DeleteAccountHandler(pool *SimplePool) http.HandlerFunc {

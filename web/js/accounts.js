@@ -5,7 +5,9 @@ const DEFAULT_PAGE_SIZE = 20;
 let currentPage = 1;
 let currentPageSize = DEFAULT_PAGE_SIZE;
 let currentTotalPages = 0;
+let currentTotalAccounts = 0;
 let lastLowQuotaCount = 0;
+let lastImportResult = null;
 
 function createSvgElement(tagName, attributes = {}) {
   const element = document.createElementNS('http://www.w3.org/2000/svg', tagName);
@@ -21,9 +23,10 @@ async function loadAccounts(page = currentPage) {
     currentPage = data.page || 1;
     currentPageSize = data.pageSize || currentPageSize;
     currentTotalPages = data.totalPages || 0;
+    currentTotalAccounts = data.total || 0;
     renderAccounts(data.accounts || []);
-    updateAccountCount(data.total || 0);
-    updatePagination(data.total || 0, currentPage, currentPageSize, currentTotalPages);
+    updateAccountCount(currentTotalAccounts);
+    updatePagination(currentTotalAccounts, currentPage, currentPageSize, currentTotalPages);
     syncPageSizeSelect(currentPageSize);
     checkQuotaWarnings(data.lowQuotaCount || 0);
   } catch (error) {
@@ -49,8 +52,6 @@ function renderAccounts(accounts) {
 
   accounts.forEach((acc) => {
     const isLowQuota = acc.quota < QUOTA_WARNING_THRESHOLD;
-    const quotaColor = acc.quota > 30 ? 'var(--success)' : (isLowQuota ? 'var(--danger)' : 'var(--warning)');
-    const quotaBg = acc.quota > 30 ? 'rgba(16, 185, 129, 0.1)' : (isLowQuota ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)');
     const email = acc.email || '-';
     const note = acc.note || '-';
     const jwtMasked = acc.jwtMasked || '***';
@@ -137,17 +138,7 @@ function checkQuotaWarnings(lowQuotaCount) {
 }
 
 function showWarningNotification(message) {
-  // 创建通知元素
-  const notification = document.createElement('div');
-  notification.className = 'toast-warning';
-  notification.textContent = message;
-  document.body.appendChild(notification);
-
-  // 3秒后自动消失
-  setTimeout(() => {
-    notification.classList.add('hide');
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
+  showToast(message, 'warning');
 }
 
 // 批量导入账号
@@ -160,31 +151,22 @@ async function importAccounts(event) {
     const accounts = JSON.parse(text);
 
     if (!Array.isArray(accounts)) {
-      throw new Error('Invalid JSON format. Expected an array.');
+      throw new Error(t('accounts.import_invalid'));
+    }
+    if (accounts.length === 0) {
+      throw new Error(t('accounts.import_empty'));
     }
 
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const acc of accounts) {
-      if (!acc.jwt) {
-        failCount++;
-        continue;
-      }
-
-      try {
-        await api.addAccount(acc.jwt, acc.email || '', acc.note || '');
-        successCount++;
-      } catch (error) {
-        console.error('Failed to add account:', error);
-        failCount++;
-      }
+    const result = await api.importAccounts(accounts);
+    renderImportSummary(result);
+    if ((result.successCount || 0) > 0) {
+      await loadAccounts(1);
+      showSuccess(`${t('accounts.import_saved')} (${result.successCount})`);
+    } else {
+      showError(`${t('accounts.import_completed')} ${t('accounts.import_fail_count')}: ${result.failCount || 0}`);
     }
-
-    alert(`导入完成！\n成功：${successCount} 个\n失败：${failCount} 个`);
-    await loadAccounts();
   } catch (error) {
-    showError('导入失败：' + error.message);
+    showError(error.message);
   }
 
   // 清空文件输入
@@ -262,6 +244,70 @@ function updatePagination(total, page, pageSize, totalPages) {
   currentTotalPages = totalPages;
 }
 
+function renderImportSummary(result) {
+  const summary = document.getElementById('import-summary');
+  if (!summary) {
+    return;
+  }
+
+  lastImportResult = result;
+
+  const successCount = result.successCount || 0;
+  const failCount = result.failCount || 0;
+
+  const title = document.createElement('div');
+  title.className = 'import-summary-title';
+  title.textContent = t('accounts.import_completed');
+
+  const stats = document.createElement('div');
+  stats.className = 'import-summary-stats';
+
+  const successStat = document.createElement('span');
+  successStat.className = 'import-summary-stat success';
+  successStat.textContent = `${t('accounts.import_success_count')}: ${successCount}`;
+
+  const failStat = document.createElement('span');
+  failStat.className = 'import-summary-stat error';
+  failStat.textContent = `${t('accounts.import_fail_count')}: ${failCount}`;
+
+  stats.appendChild(successStat);
+  stats.appendChild(failStat);
+
+  const nodes = [title, stats];
+  const failedResults = (result.results || []).filter((item) => !item.success);
+  if (failedResults.length > 0) {
+    const detailsTitle = document.createElement('div');
+    detailsTitle.className = 'import-summary-title';
+    detailsTitle.textContent = t('accounts.import_fail_details');
+
+    const list = document.createElement('ol');
+    list.className = 'import-summary-list';
+    failedResults.slice(0, 10).forEach((item) => {
+      const entry = document.createElement('li');
+      const identifier = item.email || item.note || `#${item.index + 1}`;
+      entry.textContent = `${identifier}: ${item.error || 'Unknown error'}`;
+      list.appendChild(entry);
+    });
+
+    nodes.push(detailsTitle, list);
+  }
+
+  summary.hidden = false;
+  summary.replaceChildren(...nodes);
+}
+
+function showToast(message, variant = 'success') {
+  const notification = document.createElement('div');
+  notification.className = `toast toast-${variant}`;
+  notification.textContent = message;
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.classList.add('hide');
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
 async function deleteAccount(index) {
   if (!confirm(t('accounts.confirm_delete'))) {
     return;
@@ -277,11 +323,11 @@ async function deleteAccount(index) {
 }
 
 function showSuccess(message) {
-  alert(message);
+  showToast(message, 'success');
 }
 
 function showError(message) {
-  alert(message);
+  showToast(message, 'error');
 }
 
 // 表单提交
@@ -358,6 +404,13 @@ document.addEventListener('DOMContentLoaded', () => {
   syncPageSizeSelect(currentPageSize);
   loadAccounts();
   accountsInterval = setInterval(loadAccounts, 10000);
+});
+
+document.addEventListener('languagechange', () => {
+  updatePagination(currentTotalAccounts, currentPage, currentPageSize, currentTotalPages);
+  if (lastImportResult) {
+    renderImportSummary(lastImportResult);
+  }
 });
 
 // 页面卸载时清理

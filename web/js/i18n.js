@@ -54,7 +54,16 @@ const translations = {
       load_failed: '加载失败',
       page_size: '每页',
       prev_page: '上一页',
-      next_page: '下一页'
+      next_page: '下一页',
+      import_json: '批量导入 JSON',
+      export_accounts: '导出账号',
+      import_completed: '导入完成',
+      import_success_count: '成功',
+      import_fail_count: '失败',
+      import_fail_details: '失败明细',
+      import_empty: '导入文件不能为空',
+      import_invalid: '导入文件必须是 JSON 数组',
+      import_saved: '批量导入已完成'
     },
     playground: {
       title: 'API 测试',
@@ -164,7 +173,16 @@ const translations = {
       load_failed: 'Failed to load',
       page_size: 'Per page',
       prev_page: 'Previous',
-      next_page: 'Next'
+      next_page: 'Next',
+      import_json: 'Import JSON',
+      export_accounts: 'Export Accounts',
+      import_completed: 'Import completed',
+      import_success_count: 'Success',
+      import_fail_count: 'Failed',
+      import_fail_details: 'Failure details',
+      import_empty: 'Import file cannot be empty',
+      import_invalid: 'Import file must be a JSON array',
+      import_saved: 'Batch import completed'
     },
     playground: {
       title: 'API Playground',
@@ -255,6 +273,7 @@ function switchLanguage(lang) {
   currentLang = lang;
   localStorage.setItem('lang', lang);
   updatePageText();
+  document.dispatchEvent(new CustomEvent('languagechange', { detail: { lang } }));
 
   // 更新按钮状态
   document.querySelectorAll('.lang-btn').forEach(btn => {

@@ -70,6 +70,14 @@ class API {
     });
   }
 
+  // 批量导入账号
+  async importAccounts(accounts) {
+    return this.request('/api/accounts/import', {
+      method: 'POST',
+      body: JSON.stringify(accounts)
+    });
+  }
+
   // 删除账号
   async deleteAccount(index) {
     return this.request('/api/accounts/delete', {
